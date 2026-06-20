@@ -1,0 +1,9 @@
+Email: admin@equityengine.com
+Password: admin2025
+
+cd C:\Users\SwitchTega\Desktop\equityengine\backend
+venv\Scripts\activate
+uvicorn app.main:app --reload
+
+cd C:\Users\SwitchTega\Desktop\equityengine\frontend
+npm run dev
