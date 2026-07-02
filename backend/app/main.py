@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
-from app.routers import auth, candidates, recruiters, jobs
-from app.routers import auth, candidates, recruiters, jobs, admin
 from app.routers import auth, candidates, recruiters, jobs, admin, messages
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-from app.models import message
 # Create all database tables
 Base.metadata.create_all(bind=engine)
 
@@ -14,6 +14,11 @@ app = FastAPI(
     description="A Bias-Mitigating AI-Powered Recruitment Platform",
     version="1.0.0"
 )
+
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Allow React frontend to talk to this API
 app.add_middleware(
@@ -31,6 +36,7 @@ app.include_router(recruiters.router, prefix="/api/recruiters", tags=["Recruiter
 app.include_router(jobs.router, prefix="/api/jobs", tags=["Jobs"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(messages.router, prefix="/api/messages", tags=["Messages"])
+
 @app.get("/")
 def root():
     return {

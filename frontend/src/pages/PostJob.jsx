@@ -17,20 +17,33 @@ export default function PostJob() {
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    try {
-      await api.post("/jobs/?recruiter_id=1", form);
-      navigate("/recruiter/jobs");
-    } catch (err) {
-      setError("Failed to post job. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+const handleSubmit = async (e) => {
+  e.preventDefault()
+  setError('')
 
+  if (form.title.trim().length < 3) {
+    setError('Job title must be at least 3 characters.')
+    return
+  }
+  if (form.description.trim().length < 20) {
+    setError('Please provide a more detailed job description (at least 20 characters).')
+    return
+  }
+  if (form.required_skills.trim().length < 3) {
+    setError('Please enter at least one required skill.')
+    return
+  }
+
+  setLoading(true)
+  try {
+    await api.post('/jobs/?recruiter_id=1', form)
+    navigate('/recruiter/jobs')
+  } catch (err) {
+    setError('Failed to post job. Please try again.')
+  } finally {
+    setLoading(false)
+  }
+}
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />

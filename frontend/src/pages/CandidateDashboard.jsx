@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import Navbar from "../components/Navbar";
-import RecommendedJobs from '../components/RecommendedJobs'
+import RecommendedJobs from "../components/RecommendedJobs";
+import SkeletonCard, { SkeletonStat } from "../components/SkeletonCard";
 export default function CandidateDashboard() {
   const navigate = useNavigate();
   const [intelligence, setIntelligence] = useState(null);
@@ -60,11 +61,16 @@ export default function CandidateDashboard() {
         <p className="text-gray-500 mb-8">
           Your BDIOF-powered intelligence dashboard
         </p>
-
         {loading && (
-          <p className="text-gray-400">Loading your intelligence feed...</p>
-        )}
-
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonStat key={i} />
+              ))}
+            </div>
+            <SkeletonCard lines={4} />
+          </div>
+        )}{" "}
         {intelligence && !intelligence.has_profile && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
             <p className="text-gray-400 text-lg mb-2">📄 No CV uploaded yet</p>
@@ -77,7 +83,6 @@ export default function CandidateDashboard() {
             </button>
           </div>
         )}
-
         {intelligence && intelligence.has_profile && (
           <div className="space-y-6">
             {/* Stats Grid */}
