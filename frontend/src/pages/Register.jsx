@@ -1,142 +1,139 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { authService } from "../services/api";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function Register() {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("candidate");
+  const [consentGiven, setConsentGiven] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const { register } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    email: "",
-    full_name: "",
-    password: "",
-    role: "candidate",
-  });
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleRegister = async (e) => {
+  async function handleSubmit(e) {
     e.preventDefault();
-    setError("");
-
-    if (form.full_name.trim().length < 2) {
-      setError("Please enter your full name.");
+    if (!consentGiven) {
+      showToast("You must accept the terms and consent notice to register.", "error");
       return;
     }
-    if (!form.email.includes("@")) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
-    setLoading(true);
+    setSubmitting(true);
     try {
-      await authService.register(form);
-      navigate("/login");
-    } catch (err) {
-      setError(
-        err.response?.data?.detail || "Registration failed. Please try again.",
-      );
+      const user = await register({ email, fullName, password, role, consentGiven });
+      showToast(`Welcome to EquityEngine, ${user.full_name.split(" ")[0]}.`, "success");
+      navigate(`/${user.role}`);
+    } catch (error) {
+      showToast(error.message, "error");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
-  };
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-        {/* Logo */}
+    <div className="min-h-screen flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600">EquityEngine</h1>
-          <p className="text-gray-500 mt-2">Join the fair hiring revolution</p>
+          <h1 className="text-3xl font-display font-semibold">EquityEngine</h1>
+          <p className="text-slate mt-1 text-sm">Create your account.</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleRegister} className="space-y-5">
+        <form onSubmit={handleSubmit} className="card p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name
-            </label>
+            <label htmlFor="fullName" className="label">Full name</label>
             <input
+              id="fullName"
               type="text"
-              name="full_name"
               required
-              value={form.full_name}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="John Doe"
+              className="input"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              autoComplete="name"
             />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address
-            </label>
+            <label htmlFor="email" className="label">Email</label>
             <input
+              id="email"
               type="email"
-              name="email"
               required
-              value={form.email}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="you@example.com"
+              className="input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
             />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
+            <label htmlFor="password" className="label">Password</label>
             <input
+              id="password"
               type="password"
-              name="password"
               required
-              value={form.password}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="••••••••"
+              minLength={8}
+              className="input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
             />
+            <p className="text-xs text-slate mt-1">At least 8 characters.</p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              I am a
-            </label>
-            <select
-              name="role"
-              value={form.role}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="candidate">Job Seeker (Candidate)</option>
-              <option value="recruiter">Recruiter</option>
-            </select>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg">
-              {error}
+          <fieldset>
+            <legend className="label">I am joining as a</legend>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setRole("candidate")}
+                className={`rounded border px-3 py-2 text-sm font-medium transition-colors ${
+                  role === "candidate"
+                    ? "border-ink bg-ink text-paper"
+                    : "border-ink-100 text-ink hover:border-ink-400"
+                }`}
+              >
+                Candidate
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole("recruiter")}
+                className={`rounded border px-3 py-2 text-sm font-medium transition-colors ${
+                  role === "recruiter"
+                    ? "border-ink bg-ink text-paper"
+                    : "border-ink-100 text-ink hover:border-ink-400"
+                }`}
+              >
+                Recruiter
+              </button>
             </div>
-          )}
+          </fieldset>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200 disabled:opacity-50"
-          >
-            {loading ? "Creating account..." : "Create Account"}
+          <label className="flex items-start gap-2 text-sm text-slate">
+            <input
+              type="checkbox"
+              checked={consentGiven}
+              onChange={(e) => setConsentGiven(e.target.checked)}
+              className="mt-0.5"
+              required
+            />
+            <span>
+              I accept the{" "}
+              <Link to="/terms" className="text-ink underline underline-offset-2" target="_blank">
+                Terms and Consent Notice
+              </Link>
+              , including how EquityEngine processes my CV, GitHub, and community data to
+              compute an Evidence Score.
+            </span>
+          </label>
+
+          <button type="submit" disabled={submitting} className="btn-primary w-full">
+            {submitting ? "Creating account…" : "Create account"}
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-slate mt-6">
           Already have an account?{" "}
-          <Link
-            to="/login"
-            className="text-blue-600 font-medium hover:underline"
-          >
+          <Link to="/login" className="text-ink font-medium underline underline-offset-2">
             Sign in
           </Link>
         </p>

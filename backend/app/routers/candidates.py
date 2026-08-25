@@ -1,279 +1,460 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
-from sqlalchemy.orm import Session
-from app.database import get_db
-from app.models.user import User
-from app.models.profile import CandidateProfile
-from app.services.resume_parser import extract_resume_text
-from app.services.nlp_service import analyze_resume
-import shutil
+"""
+Candidate-facing endpoints: CV upload (Pipeline 1) and profile
+viewing/editing.
+"""
 import os
+import uuid as uuid_lib
+from datetime import datetime
 
-router = APIRouter()
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+from fastapi.responses import StreamingResponse
+import io
+from app.services.cv_generator import build_optimized_cv_pdf
 
-@router.get("/")
-def get_candidates(db: Session = Depends(get_db)):
-    return {"message": "Candidates endpoint ready"}
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from sqlalchemy.orm import Session
 
-@router.post("/upload-resume/{user_id}")
-async def upload_resume(
-    user_id: int,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db)
-):
-    # Validate file type
-    if not file.filename.endswith((".pdf", ".docx")):
-        raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported")
+from app.database import get_db
+from app.models import User, CandidateProfile, UserRole, Job, Application, ApplicationStatus, ScreeningMode
+from app.schemas import (
+    CVUploadResponse, CandidateProfileOut, CandidateProfileUpdate,
+    GitHubLinkRequest, GitHubAnalysisResponse,
+    CertificationCreate, StackOverflowLinkRequest, DevToLinkRequest,
+    EndorsementCreate, CommunityProfileResponse,
+    FullCompetencyProfileResponse, EvidenceScoreBreakdown,
+    JobOut, ApplicationCreate, ApplicationOut,
+)
+from app.deps import require_role
+from app.services.resume_parser import parse_cv
+from app.services.ats_compliance import compute_ats_score
+from app.services.competency_engine import (
+    update_profile_completeness, recompute_competency_profile, build_competency_profile,
+    compute_job_specific_evidence_score,
+)
+from app.services.github_service import analyze_github_profile, GitHubServiceError
+from app.services.notification_service import create_notification
+from app.services.community_service import (
+    fetch_stackoverflow_stats, fetch_devto_stats, classify_certification,
+    add_endorsement, summarize_endorsements_for_owner, compute_c_peer_score,
+    CommunityServiceError,
+)
 
-    # Save file
-    file_path = f"{UPLOAD_DIR}/{user_id}_{file.filename}"
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+router = APIRouter(prefix="/candidates", tags=["candidates"])
 
-    # Extract text
-    try:
-        text = extract_resume_text(file_path)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+UPLOAD_DIR = "uploads/cvs"
+ALLOWED_EXTENSIONS = {"pdf", "docx", "txt"}
+MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 
-    # Run BDIOF Vector 1 NLP analysis
-    analysis = analyze_resume(text)
 
-    # Save or update profile
-    profile = db.query(CandidateProfile).filter(
-        CandidateProfile.user_id == user_id
-    ).first()
-
+def _get_own_profile(current_user: User, db: Session) -> CandidateProfile:
+    profile = (
+        db.query(CandidateProfile)
+        .filter(CandidateProfile.user_id == current_user.id)
+        .first()
+    )
     if not profile:
-        profile = CandidateProfile(
-            user_id=user_id,
-            raw_resume_path=file_path,
-            skills=", ".join(analysis["skills_detected"]),
-            visibility_score=analysis["visibility_score"]
-        )
+        # Should not normally happen — a profile row is created at
+        # registration — but handled defensively in case of older
+        # accounts or manual DB edits.
+        profile = CandidateProfile(user_id=current_user.id)
         db.add(profile)
-    else:
-        profile.raw_resume_path = file_path
-        profile.skills = ", ".join(analysis["skills_detected"])
-        profile.visibility_score = analysis["visibility_score"]
+        db.commit()
+        db.refresh(profile)
+    return profile
+
+
+@router.post("/cv/upload", response_model=CVUploadResponse)
+async def upload_cv(
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '.{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 5MB.")
+
+    try:
+        parsed = parse_cv(file_bytes, file.filename)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # Save the original file to disk so it can be downloaded/reviewed later.
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    safe_filename = f"{current_user.id}_{int(datetime.utcnow().timestamp())}.{ext}"
+    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+    with open(file_path, "wb") as f:
+        f.write(file_bytes)
+
+    ats_result = compute_ats_score(text=parsed["raw_text"], skills_found=parsed["skills"])
+
+    profile = _get_own_profile(current_user, db)
+    profile.cv_file_url = f"/uploads/cvs/{safe_filename}"
+    profile.cv_skills = parsed["skills"]
+    profile.cv_projects = parsed["projects"]
+    profile.regional_terms = parsed["regional_terms"]
+    profile.experience_level = parsed["experience_level"]
+    profile.education_tier = parsed["education_tier"]
+    profile.ats_score = ats_result["score"]
+    recompute_competency_profile(profile)
 
     db.commit()
     db.refresh(profile)
 
-    return {
-        "message": "Resume uploaded and analyzed successfully",
-        "analysis": analysis
+    return CVUploadResponse(
+        cv_skills=parsed["skills"],
+        regional_terms=parsed["regional_terms"],
+        experience_level=parsed["experience_level"],
+        education_tier=parsed["education_tier"],
+        projects=parsed["projects"],
+        ats_score=ats_result["score"],
+        ats_breakdown=ats_result["breakdown"],
+        ats_suggestions=ats_result["suggestions"],
+        profile_completeness=profile.profile_completeness,
+    )
+
+
+@router.post("/github/link", response_model=GitHubAnalysisResponse)
+async def link_github(
+    payload: GitHubLinkRequest,
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = await analyze_github_profile(payload.github_username)
+    except GitHubServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    profile = _get_own_profile(current_user, db)
+    profile.github_username = result["github_username"]
+    profile.github_repos = result["repos"]
+    profile.github_languages = result["languages"]
+    profile.learning_trajectory = result["learning_trajectory"]
+    profile.g_act_score = result["g_act_score"]
+    profile.github_activity = {
+        **result["activity"],
+        "inferred_skills": result["inferred_skills"],
     }
+    recompute_competency_profile(profile)
 
-@router.get("/intelligence/{user_id}")
-def get_candidate_intelligence(user_id: int, db: Session = Depends(get_db)):
-    """
-    BDIOF Vector 3B — Candidate Intelligence Feed
-    Returns personalized insights based on real recruiter
-    interaction data to close the feedback loop.
-    """
-    from app.models.audit import AuditLog
-    from app.models.job import Job
+    db.commit()
+    db.refresh(profile)
 
-    profile = db.query(CandidateProfile).filter(
-        CandidateProfile.user_id == user_id
-    ).first()
+    return GitHubAnalysisResponse(
+        github_username=result["github_username"],
+        profile_summary=result["profile_summary"],
+        repos=result["repos"],
+        languages=result["languages"],
+        activity=result["activity"],
+        learning_trajectory=result["learning_trajectory"],
+        inferred_skills=result["inferred_skills"],
+        g_act_score=result["g_act_score"],
+        profile_completeness=profile.profile_completeness,
+    )
 
-    if not profile:
-        return {
-            "has_profile": False,
-            "message": "Upload your CV to start receiving intelligence insights."
-        }
 
-    # How many times viewed anonymously
-    profile_views = db.query(AuditLog).filter(
-        AuditLog.candidate_id == user_id,
-        AuditLog.action == "viewed_anonymized"
-    ).count()
+def _recompute_c_peer(profile: CandidateProfile) -> None:
+    profile.c_peer_score = compute_c_peer_score(
+        profile.certifications, profile.stackoverflow_data, profile.peer_endorsements
+    )
 
-    # How many interview requests
-    interview_requests = db.query(AuditLog).filter(
-        AuditLog.candidate_id == user_id,
-        AuditLog.action == "identity_revealed"
-    ).count()
 
-    # Conversion rate
-    conversion_rate = round((interview_requests / profile_views * 100), 2) if profile_views > 0 else 0
+@router.post("/certifications", response_model=CommunityProfileResponse)
+def add_certification(
+    payload: CertificationCreate,
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    profile = _get_own_profile(current_user, db)
 
-    # Generate recommendations
-    recommendations = []
+    new_cert = classify_certification(payload.name, payload.issuer, payload.date_earned)
+    profile.certifications = (profile.certifications or []) + [new_cert]
 
-    if profile.visibility_score < 70:
-        recommendations.append({
-            "type": "warning",
-            "message": f"Your CV has a {profile.visibility_score}% global visibility score. Review the BDIOF optimization suggestions to improve it."
-        })
+    _recompute_c_peer(profile)
+    recompute_competency_profile(profile)
+    db.commit()
+    db.refresh(profile)
 
-    if profile_views > 0 and interview_requests == 0:
-        recommendations.append({
-            "type": "tip",
-            "message": "Recruiters viewed your profile but haven't requested an interview yet. Consider optimizing your skill keywords to better match job requirements."
-        })
+    return CommunityProfileResponse(
+        certifications=profile.certifications,
+        stackoverflow_data=profile.stackoverflow_data,
+        endorsement_summary=summarize_endorsements_for_owner(profile.peer_endorsements),
+        c_peer_score=profile.c_peer_score,
+        profile_completeness=profile.profile_completeness,
+    )
 
-    if profile_views == 0:
-        recommendations.append({
-            "type": "info",
-            "message": "Your profile hasn't been viewed yet. Make sure your skills are up to date and your CV is optimized."
-        })
 
-    if interview_requests > 0:
-        recommendations.append({
-            "type": "success",
-            "message": f"🎉 {interview_requests} recruiter(s) have requested an interview with you! Check your email."
-        })
+@router.post("/community/stackoverflow/link", response_model=CommunityProfileResponse)
+async def link_stackoverflow(
+    payload: StackOverflowLinkRequest,
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    try:
+        so_data = await fetch_stackoverflow_stats(payload.stackoverflow_user_id)
+    except CommunityServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
-    skill_count = len(profile.skills.split(',')) if profile.skills else 0
-    if skill_count < 10:
-        recommendations.append({
-            "type": "tip",
-            "message": f"You have {skill_count} skills detected. Candidates with 15+ skills get 2x more profile views."
-        })
+    profile = _get_own_profile(current_user, db)
+    profile.stackoverflow_data = so_data
 
-    return {
-        "has_profile": True,
-        "stats": {
-            "profile_views": profile_views,
-            "interview_requests": interview_requests,
-            "conversion_rate": conversion_rate,
-            "skill_score": profile.skill_score or 0,
-            "visibility_score": profile.visibility_score or 0,
-            "skills_count": skill_count
-        },
-        "recommendations": recommendations
-    }
-@router.post("/github/{user_id}")
-def analyze_github(user_id: int, github_url: str, db: Session = Depends(get_db)):
-    """
-    BDIOF Vector 1 — GitHub Integration
-    Analyzes candidate's GitHub profile and merges
-    with existing CV data in the BDIOF pipeline.
-    """
-    from app.services.github_service import analyze_github_profile
+    _recompute_c_peer(profile)
+    recompute_competency_profile(profile)
+    db.commit()
+    db.refresh(profile)
 
-    result = analyze_github_profile(github_url)
+    return CommunityProfileResponse(
+        certifications=profile.certifications or [],
+        stackoverflow_data=profile.stackoverflow_data,
+        endorsement_summary=summarize_endorsements_for_owner(profile.peer_endorsements),
+        c_peer_score=profile.c_peer_score,
+        profile_completeness=profile.profile_completeness,
+    )
 
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
 
-    # Merge GitHub languages with existing CV skills
-    profile = db.query(CandidateProfile).filter(
-        CandidateProfile.user_id == user_id
-    ).first()
-
-    if profile:
-        existing_skills = set(s.strip().lower() for s in (profile.skills or "").split(","))
-        github_skills = set(result["top_languages"])
-        merged_skills = existing_skills.union(github_skills)
-        profile.skills = ", ".join(merged_skills)
-        profile.github_url = github_url
-        db.commit()
-
-    return {
-        "message": "GitHub profile analyzed and merged with CV data",
-        "github_analysis": result
-    }
-@router.get("/recommended-jobs/{user_id}")
-def get_recommended_jobs(user_id: int, db: Session = Depends(get_db)):
-    """
-    Recommendation Engine — returns top 3 jobs ranked
-    by Skill-Score match against candidate's profile.
-    """
-    from app.models.job import Job
-    from app.services.skill_matcher import compute_skill_score
-
-    profile = db.query(CandidateProfile).filter(
-        CandidateProfile.user_id == user_id
-    ).first()
-
-    if not profile or not profile.skills:
-        return {"recommendations": [], "has_profile": False}
-
-    jobs = db.query(Job).filter(Job.is_active == True).all()
-    scored_jobs = []
-
-    for job in jobs:
-        score = compute_skill_score(profile.skills, job.required_skills)
-        missing_skills = []
-
-        job_skills = set(s.strip().lower() for s in job.required_skills.split(","))
-        candidate_skills = set(s.strip().lower() for s in profile.skills.split(","))
-        missing_skills = list(job_skills - candidate_skills)
-
-        scored_jobs.append({
-            "job_id": job.id,
-            "title": job.title,
-            "description": job.description,
-            "required_skills": job.required_skills,
-            "location": job.location,
-            "skill_score": score,
-            "missing_skills": missing_skills[:5]
-        })
-
-    scored_jobs.sort(key=lambda x: x["skill_score"], reverse=True)
-    return {
-        "recommendations": scored_jobs[:3],
-        "has_profile": True
-    }
-
-from pydantic import BaseModel
-from typing import List
-
-class SuggestionItem(BaseModel):
-    original: str
-    suggestion: str
-    reason: str = ""
-
-@router.post("/generate-optimized-cv/{user_id}")
-async def generate_optimized_cv_endpoint(
-    user_id: int,
-    approved_suggestions: List[SuggestionItem],
-    db: Session = Depends(get_db)
+@router.post("/community/devto/link")
+async def link_devto(
+    payload: DevToLinkRequest,
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
 ):
     """
-    BDIOF Vector 1 — Generate Optimized CV
-    Applies approved suggestions and returns downloadable PDF.
+    Dev.to article activity is stored but does not currently feed
+    c_peer_score directly — it's informational evidence of community
+    writing/thought-leadership shown on the candidate's profile. If
+    you want it to contribute to the score, it belongs alongside
+    certifications and Stack Overflow in compute_c_peer_score(); left
+    out here deliberately so the formula's three inputs stay traceable
+    to what Chapter 2 actually reviewed (certifications, Stack
+    Overflow, peer endorsement) rather than growing informally.
     """
-    from app.services.cv_generator import generate_optimized_cv
-    from fastapi.responses import FileResponse
+    try:
+        devto_data = await fetch_devto_stats(payload.devto_username)
+    except CommunityServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
-    profile = db.query(CandidateProfile).filter(
-        CandidateProfile.user_id == user_id
-    ).first()
+    profile = _get_own_profile(current_user, db)
+    profile.devto_data = devto_data
+    recompute_competency_profile(profile)
+    db.commit()
+    db.refresh(profile)
 
-    if not profile or not profile.raw_resume_path:
-        raise HTTPException(
-            status_code=400,
-            detail="No CV uploaded yet. Please upload your CV first."
-        )
+    return {"devto_data": devto_data, "profile_completeness": profile.profile_completeness}
 
-    if not os.path.exists(profile.raw_resume_path):
-        raise HTTPException(
-            status_code=404,
-            detail="Original CV file not found."
-        )
+
+@router.post("/{candidate_id}/endorse", response_model=dict)
+def endorse_candidate(
+    candidate_id: uuid_lib.UUID,
+    payload: EndorsementCreate,
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    if str(candidate_id) != str(payload.candidate_id):
+        raise HTTPException(status_code=400, detail="candidate_id in URL and body must match")
+
+    endorser_profile = _get_own_profile(current_user, db)
+    if str(endorser_profile.id) == str(candidate_id):
+        raise HTTPException(status_code=400, detail="You cannot endorse your own profile")
+
+    target = db.query(CandidateProfile).filter(CandidateProfile.id == candidate_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Candidate not found")
 
     try:
-        suggestions_dict = [s.dict() for s in approved_suggestions]
-        output_path, changes = generate_optimized_cv(
-            profile.raw_resume_path,
-            suggestions_dict,
-            user_id
+        target.peer_endorsements = add_endorsement(
+            target.peer_endorsements, str(endorser_profile.id), payload.skill
         )
+    except CommunityServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
-        profile.optimized_resume_path = output_path
-        db.commit()
+    _recompute_c_peer(target)
+    recompute_competency_profile(target)
+    db.commit()
 
-        return FileResponse(
-            output_path,
-            media_type="application/pdf",
-            filename=f"EquityEngine_Optimized_CV_{user_id}.pdf"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"detail": f"Endorsed for {payload.skill}"}
+
+
+@router.get("/me/endorsements", response_model=CommunityProfileResponse)
+def get_my_endorsements(
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    profile = _get_own_profile(current_user, db)
+    return CommunityProfileResponse(
+        certifications=profile.certifications or [],
+        stackoverflow_data=profile.stackoverflow_data,
+        endorsement_summary=summarize_endorsements_for_owner(profile.peer_endorsements),
+        c_peer_score=profile.c_peer_score,
+        profile_completeness=profile.profile_completeness,
+    )
+
+
+@router.get("/me/competency-profile", response_model=FullCompetencyProfileResponse)
+def get_my_competency_profile(
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    profile = _get_own_profile(current_user, db)
+    skills = build_competency_profile(profile)
+
+    return FullCompetencyProfileResponse(
+        skills=skills,
+        evidence_score_breakdown=EvidenceScoreBreakdown(
+            p_emb=profile.p_emb_score or 0.0,
+            g_act=profile.g_act_score or 0.0,
+            c_peer=profile.c_peer_score or 0.0,
+            l_traj=profile.l_traj_score or 0.0,
+            evidence_score=profile.evidence_score or 0.0,
+        ),
+        profile_completeness=profile.profile_completeness,
+    )
+
+
+@router.get("/me/profile", response_model=CandidateProfileOut)
+def get_my_profile(
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    return _get_own_profile(current_user, db)
+
+@router.get("/me/cv/download")
+def download_optimized_cv(
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    """
+    Generates a CV PDF from the candidate's unified Competency Profile
+    (CV + GitHub + community evidence combined) — not just their
+    originally uploaded CV text. This means even a candidate who never
+    uploaded a formal CV, and only linked GitHub and added a
+    certification, can still download a presentable, exportable CV.
+    """
+    profile = _get_own_profile(current_user, db)
+    pdf_bytes = build_optimized_cv_pdf(profile, current_user)
+
+    safe_name = current_user.full_name.replace(" ", "_")
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={safe_name}_CV.pdf"},
+    )
+
+
+@router.patch("/me/profile", response_model=CandidateProfileOut)
+def update_my_profile(
+    payload: CandidateProfileUpdate,
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    profile = _get_own_profile(current_user, db)
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(profile, field, value)
+
+    recompute_competency_profile(profile)
+    db.commit()
+    db.refresh(profile)
+    return profile
+
+
+# ---------------------------------------------------------------------
+# Job browsing and applications
+# ---------------------------------------------------------------------
+
+@router.get("/jobs", response_model=list[JobOut])
+def browse_jobs(
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    return db.query(Job).filter(Job.is_active == True).order_by(Job.created_at.desc()).all()  # noqa: E712
+
+
+@router.get("/jobs/{job_id}", response_model=JobOut)
+def get_job_detail(
+    job_id: uuid_lib.UUID,
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    job = db.query(Job).filter(Job.id == job_id, Job.is_active == True).first()  # noqa: E712
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or no longer active")
+    return job
+
+
+@router.post("/jobs/{job_id}/apply", response_model=ApplicationOut, status_code=201)
+async def apply_to_job(
+    job_id: uuid_lib.UUID,
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    job = db.query(Job).filter(Job.id == job_id, Job.is_active == True).first()  # noqa: E712
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or no longer active")
+
+    profile = _get_own_profile(current_user, db)
+
+    existing = (
+        db.query(Application)
+        .filter(Application.candidate_id == profile.id, Application.job_id == job_id)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="You have already applied to this job")
+
+    # Snapshot the Evidence Score at the moment of application — this
+    # is what applications.evidence_score_at_application exists for
+    # (Chapter 3, Table 3.1): the candidate's live score can keep
+    # changing after this point (more GitHub activity, new
+    # certifications), but the score that was actually used to
+    # evaluate THIS application is preserved for audit purposes.
+    score_breakdown = compute_job_specific_evidence_score(profile, job)
+
+    application = Application(
+        candidate_id=profile.id,
+        job_id=job_id,
+        status=ApplicationStatus.applied,
+        screening_mode_at_application=job.screening_mode,
+        evidence_score_at_application=score_breakdown["evidence_score"],
+    )
+    db.add(application)
+    db.commit()
+    db.refresh(application)
+
+    # Notify the recruiter — deliberately WITHOUT the candidate's name
+    # for anonymised jobs. A notification is exactly the kind of
+    # incidental channel that could quietly leak identity if built
+    # carelessly (see chat_service.py's docstring for the same
+    # principle applied to chat) — the message text is the allow-list
+    # here, same discipline as dossier_service.py's field-level one.
+    if job.screening_mode == ScreeningMode.standard:
+        notify_text = f"{current_user.full_name} applied to '{job.title}'."
+    else:
+        notify_text = f"A new application was received for '{job.title}' (anonymised — view the Competency Dossier)."
+
+    await create_notification(
+        db, user_id=job.recruiter_id, notification_type="new_application",
+        message=notify_text, related_id=application.id,
+    )
+
+    return application
+
+
+@router.get("/me/applications", response_model=list[ApplicationOut])
+def get_my_applications(
+    current_user: User = Depends(require_role(UserRole.candidate)),
+    db: Session = Depends(get_db),
+):
+    profile = _get_own_profile(current_user, db)
+    return (
+        db.query(Application)
+        .filter(Application.candidate_id == profile.id)
+        .order_by(Application.applied_at.desc())
+        .all()
+    )

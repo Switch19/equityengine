@@ -2,13 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@layer base {
+  h1, h2, h3, h4 {
+    @apply font-display text-ink;
+  }
+  body {
+    @apply antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid #F2B705;
+    outline-offset: 2px;
+  }
 }
 
-body {
-  font-family: 'Inter', sans-serif;
-  background-color: #f9fafb;
+@layer components {
+  .card {
+    @apply bg-white rounded-lg border border-ink-100 shadow-sm;
+  }
+  .btn-primary {
+    @apply bg-ink text-paper font-body font-medium px-4 py-2 rounded
+           hover:bg-ink-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-white text-ink font-body font-medium px-4 py-2 rounded border border-ink-100
+           hover:border-ink-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-beacon {
+    @apply bg-beacon text-ink font-body font-semibold px-4 py-2 rounded
+           hover:bg-beacon-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .input {
+    @apply w-full border border-ink-100 rounded px-3 py-2 font-body text-ink
+           focus:border-ink-400 focus:outline-none transition-colors;
+  }
+  .label {
+    @apply block text-sm font-medium text-slate mb-1;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-medium;
+  }
+  .badge-declared {
+    @apply bg-slate-50 text-slate;
+  }
+  .badge-confirmed {
+    @apply bg-beacon-50 text-beacon-600;
+  }
+  .badge-verified {
+    @apply bg-verified-50 text-verified;
+  }
+  .score-figure {
+    @apply font-mono font-semibold;
+  }
+
+  /* The "masked silhouette" signature element for anonymised
+     candidate cards — an abstract geometric stand-in for identity,
+     deliberately not a blurred-photo cliché, since there is no photo
+     to blur: BDIOF mode never receives one in the first place. */
+  .masked-avatar {
+    @apply w-12 h-12 rounded-full flex items-center justify-center;
+    background: linear-gradient(135deg, #E1E2EF 0%, #F1F1F7 100%);
+  }
 }

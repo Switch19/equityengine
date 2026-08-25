@@ -1,109 +1,151 @@
+"""
+Generates a downloadable, professionally formatted CV PDF from a
+candidate's unified Competency Profile — not just their uploaded CV
+text, but evidence pulled from all three pipelines (CV, GitHub,
+community). This is the feature's actual value for a self-taught
+candidate with no formal CV at all: EquityEngine can still produce a
+presentable, exportable document from their GitHub projects and
+community certifications alone.
+
+Built with pymupdf (already in your installed packages, same tool
+used for the admin bias report in Phase 7) rather than a templating/
+PDF-generation library, so no new dependency is needed.
+"""
 import fitz
-import os
 
-def generate_optimized_cv(original_path: str, approved_suggestions: list, user_id: int) -> str:
-    """
-    BDIOF Vector 1 — Generate Optimized CV
-    Takes the original CV, applies all approved suggestions
-    by replacing regional terms with global equivalents,
-    and saves a new optimized PDF.
-    """
-    try:
-        doc = fitz.open(original_path)
-        full_text = ""
-        for page in doc:
-            full_text += page.get_text()
-        doc.close()
+from app.models import CandidateProfile, User
+from app.services.competency_engine import build_competency_profile
 
-        optimized_text = full_text
-        changes_made = []
+PAGE_MARGIN = 50
+LINE_HEIGHT = 16
+PAGE_BOTTOM = 780
 
-        for suggestion in approved_suggestions:
-            original_term = suggestion.get("original", "")
-            global_equivalent = suggestion.get("suggestion", "")
-            if original_term and global_equivalent:
-                if original_term.lower() in optimized_text.lower():
-                    import re
-                    optimized_text = re.sub(
-                        re.escape(original_term),
-                        global_equivalent,
-                        optimized_text,
-                        flags=re.IGNORECASE
-                    )
-                    changes_made.append({
-                        "original": original_term,
-                        "replaced_with": global_equivalent
-                    })
 
-        output_path = f"uploads/optimized_{user_id}_cv.pdf"
-        new_doc = fitz.open()
-        page = new_doc.new_page(width=595, height=842)
+class _PdfWriter:
+    """Small stateful helper so the generation function below doesn't
+    have to manually track cursor position and page-overflow on every
+    call — same page-overflow-protection pattern used in the Phase 7
+    admin report, extracted here since CV generation needs it more
+    heavily (variable-length skills/projects/certifications lists)."""
 
-        # Header
-        page.insert_text(
-            (50, 50),
-            "EQUITYENGINE — BDIOF OPTIMIZED CV",
-            fontsize=10,
-            color=(0.1, 0.33, 0.85)
-        )
-        page.draw_line((50, 62), (545, 62), color=(0.1, 0.33, 0.85), width=1)
+    def __init__(self):
+        self.doc = fitz.open()
+        self.page = self.doc.new_page()
+        self.y = PAGE_MARGIN
 
-        # Optimization notice
-        page.insert_text(
-            (50, 78),
-            f"Optimized by BDIOF · {len(changes_made)} regional terms updated for global ATS visibility",
-            fontsize=8,
-            color=(0.4, 0.4, 0.4)
-        )
+    def _new_page_if_needed(self, extra_lines=1):
+        if self.y + extra_lines * LINE_HEIGHT > PAGE_BOTTOM:
+            self.page = self.doc.new_page()
+            self.y = PAGE_MARGIN
 
-        # CV Content
-        y_position = 105
-        line_height = 13
-        max_width = 90
+    def text(self, content, size=10, bold=False, gap_after=4, indent=0):
+        self._new_page_if_needed()
+        font = "hebo" if bold else "helv"  # PyMuPDF base-14 aliases; "helv-bold" is NOT valid
+        self.page.insert_text((PAGE_MARGIN + indent, self.y), content, fontsize=size, fontname=font)
+        self.y += LINE_HEIGHT + gap_after
 
-        for line in optimized_text.split('\n'):
-            if y_position > 800:
-                page = new_doc.new_page(width=595, height=842)
-                y_position = 50
+    def wrapped_text(self, content, size=9, indent=0, max_chars=95, gap_after=6):
+        """Naive word-wrap by character count — good enough for CV
+        body text at a fixed font size, avoids pulling in a text-
+        measurement dependency for exact pixel-width wrapping."""
+        words = content.split()
+        line = ""
+        for word in words:
+            # Hard-break a single word that alone exceeds max_chars
+            # (e.g. a long URL) — without this, such a word would
+            # either overflow the page width or (in an earlier,
+            # buggy version of this function) emit a spurious empty
+            # line before it.
+            while len(word) > max_chars:
+                if line:
+                    self.text(line, size=size, indent=indent, gap_after=2)
+                    line = ""
+                self.text(word[:max_chars], size=size, indent=indent, gap_after=2)
+                word = word[max_chars:]
 
-            line = line.strip()
-            if not line:
-                y_position += 6
-                continue
+            candidate_line = f"{line} {word}".strip()
+            if len(candidate_line) > max_chars:
+                if line:
+                    self.text(line, size=size, indent=indent, gap_after=2)
+                line = word
+            else:
+                line = candidate_line
+        if line:
+            self.text(line, size=size, indent=indent, gap_after=gap_after)
 
-            # Word wrap
-            words = line.split()
-            current_line = ""
-            for word in words:
-                if len(current_line) + len(word) + 1 <= max_width:
-                    current_line += (" " if current_line else "") + word
-                else:
-                    if current_line:
-                        page.insert_text(
-                            (50, y_position),
-                            current_line,
-                            fontsize=9,
-                            color=(0.1, 0.1, 0.1)
-                        )
-                        y_position += line_height
-                        if y_position > 800:
-                            page = new_doc.new_page(width=595, height=842)
-                            y_position = 50
-                    current_line = word
+    def section_header(self, title):
+        self._new_page_if_needed(extra_lines=2)
+        self.y += 6
+        self.text(title.upper(), size=12, bold=True, gap_after=2)
+        self.page.draw_line((PAGE_MARGIN, self.y - 8), (545, self.y - 8), color=(0.08, 0.09, 0.23), width=0.7)
+        self.y += 4
 
-            if current_line:
-                page.insert_text(
-                    (50, y_position),
-                    current_line,
-                    fontsize=9,
-                    color=(0.1, 0.1, 0.1)
-                )
-                y_position += line_height
+    def bytes(self):
+        result = self.doc.tobytes()
+        self.doc.close()
+        return result
 
-        new_doc.save(output_path)
-        new_doc.close()
 
-        return output_path, changes_made
+def build_optimized_cv_pdf(profile: CandidateProfile, user: User) -> bytes:
+    w = _PdfWriter()
 
-    except Exception as e:
-        raise Exception(f"CV generation failed: {str(e)}")
+    w.text(user.full_name, size=18, bold=True, gap_after=2)
+    contact_parts = [user.email]
+    if profile.location:
+        contact_parts.append(profile.location)
+    if profile.github_username:
+        contact_parts.append(f"github.com/{profile.github_username}")
+    w.text("  |  ".join(contact_parts), size=9, gap_after=10)
+
+    if profile.experience_level or profile.education_tier:
+        w.section_header("Summary")
+        summary_bits = []
+        if profile.experience_level and profile.experience_level != "Not specified":
+            summary_bits.append(profile.experience_level)
+        if profile.education_tier and profile.education_tier != "Undisclosed":
+            summary_bits.append(f"{profile.education_tier} background")
+        if profile.bio:
+            summary_bits.append(profile.bio)
+        w.wrapped_text(" — ".join(summary_bits) if summary_bits else "", gap_after=10)
+
+    competency = build_competency_profile(profile)
+    if competency:
+        w.section_header("Skills")
+        by_tier = {"Verified": [], "Confirmed": [], "Declared": []}
+        for skill, meta in competency.items():
+            by_tier.setdefault(meta["tier"], []).append(skill)
+        for tier in ["Verified", "Confirmed", "Declared"]:
+            if by_tier[tier]:
+                w.wrapped_text(f"{tier}: " + ", ".join(sorted(by_tier[tier])), gap_after=4)
+        w.y += 6
+
+    all_projects = list(profile.cv_projects or [])
+    for repo in (profile.github_repos or [])[:5]:
+        if repo.get("description"):
+            all_projects.append({
+                "title": repo.get("name", "GitHub project"),
+                "description": repo["description"],
+            })
+    if all_projects:
+        w.section_header("Projects")
+        for project in all_projects[:8]:
+            w.text(project.get("title", "Untitled project"), size=10, bold=True, gap_after=1)
+            w.wrapped_text(project.get("description", ""), gap_after=6, indent=4)
+
+    if profile.certifications:
+        w.section_header("Certifications")
+        for cert in profile.certifications:
+            line = cert.get("name", "")
+            if cert.get("issuer"):
+                line += f" — {cert['issuer']}"
+            w.text(line, size=9, gap_after=3)
+        w.y += 4
+
+    w._new_page_if_needed(extra_lines=2)
+    w.y += 10
+    w.text(
+        "Generated by EquityEngine from CV, GitHub, and community evidence.",
+        size=7, gap_after=0,
+    )
+
+    return w.bytes()

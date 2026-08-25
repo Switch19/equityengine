@@ -1,9 +1,45 @@
-Email: admin@equityengine.com
-Password: admin2025
+Email: adminequityengine@gmail.com
+Password: admin2025?!
+
+database pwd equity2025
+
+
 
 cd C:\Users\SwitchTega\Desktop\equityengine\backend
 venv\Scripts\activate
-uvicorn app.main:app --reload
+uvicorn main:app --reload
 
 cd C:\Users\SwitchTega\Desktop\equityengine\frontend
 npm run dev
+
+
+
+backend/
+├── .env
+├── main.py
+├── SETUP.md
+└── app/
+    ├── __init__.py
+    ├── config.py
+    ├── database.py
+    ├── deps.py
+    ├── models.py
+    ├── schemas.py
+    ├── security.py
+    ├── data/
+    │   ├── __init__.py
+    │   ├── certification_registry.py
+    │   ├── regional_terms.py
+    │   └── skill_taxonomy.py
+    ├── routers/
+    │   ├── __init__.py
+    │   ├── auth.py
+    │   └── candidates.py
+    └── services/
+        ├── __init__.py
+        ├── ats_compliance.py
+        ├── community_service.py
+        ├── competency_engine.py
+        ├── github_service.py
+        ├── nlp_service.py
+        └── resume_parser.py

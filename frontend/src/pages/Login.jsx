@@ -1,94 +1,72 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { authService } from "../services/api";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function Login() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const { login } = useAuth();
+  const { showToast } = useToast();
+  const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
+  async function handleSubmit(e) {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+    setSubmitting(true);
     try {
-      const res = await authService.login({ email, password });
-      localStorage.setItem("token", res.data.access_token);
-      localStorage.setItem("role", res.data.role);
-      localStorage.setItem("user_id", res.data.user_id);
-      if (res.data.role === "candidate") navigate("/candidate/dashboard");
-      else if (res.data.role === "recruiter") navigate("/recruiter/dashboard");
-      else if (res.data.role === "admin") navigate("/admin/dashboard");
-    } catch (err) {
-      setError("Invalid email or password");
+      const user = await login(email, password);
+      showToast(`Welcome back, ${user.full_name.split(" ")[0]}.`, "success");
+      navigate(`/${user.role}`);
+    } catch (error) {
+      showToast(error.message, "error");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
-        {/* Logo */}
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600">EquityEngine</h1>
-          <p className="text-gray-500 mt-2">Fair hiring, powered by AI</p>
+          <h1 className="text-3xl font-display font-semibold">EquityEngine</h1>
+          <p className="text-slate mt-1 text-sm">Evidence, not credentials.</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleSubmit} className="card p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address
-            </label>
+            <label htmlFor="email" className="label">Email</label>
             <input
+              id="email"
               type="email"
               required
+              className="input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="you@example.com"
+              autoComplete="email"
             />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
+            <label htmlFor="password" className="label">Password</label>
             <input
+              id="password"
               type="password"
               required
+              className="input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="••••••••"
+              autoComplete="current-password"
             />
           </div>
-
-          {error && (
-            <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200 disabled:opacity-50"
-          >
-            {loading ? "Signing in..." : "Sign In"}
+          <button type="submit" disabled={submitting} className="btn-primary w-full">
+            {submitting ? "Signing in…" : "Sign in"}
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Don't have an account?{" "}
-          <Link
-            to="/register"
-            className="text-blue-600 font-medium hover:underline"
-          >
-            Register here
+        <p className="text-center text-sm text-slate mt-6">
+          New here?{" "}
+          <Link to="/register" className="text-ink font-medium underline underline-offset-2">
+            Create an account
           </Link>
         </p>
       </div>

@@ -1,7 +1,23 @@
-export default function SkillBadge({ skill }) {
+const TIER_CLASSES = {
+  Declared: "badge-declared",
+  Confirmed: "badge-confirmed",
+  Verified: "badge-verified",
+};
+
+const TIER_STARS = {
+  Declared: "★",
+  Confirmed: "★★",
+  Verified: "★★★",
+};
+
+export default function SkillBadge({ skill, tier, sources }) {
   return (
-    <span className="inline-block bg-blue-100 text-blue-700 text-xs font-medium px-3 py-1 rounded-full mr-2 mb-2 capitalize">
-      {skill}
-    </span>
-  )
+    <div
+      className={`badge ${TIER_CLASSES[tier] || "badge-declared"}`}
+      title={sources ? `Corroborated by: ${sources.join(", ")}` : undefined}
+    >
+      <span>{skill}</span>
+      <span className="font-mono">{TIER_STARS[tier] || "★"}</span>
+    </div>
+  );
 }
