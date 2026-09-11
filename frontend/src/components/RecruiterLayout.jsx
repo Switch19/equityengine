@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { to: "/recruiter/company", label: "Company Profile" },
   { to: "/recruiter/jobs", label: "My Jobs" },
   { to: "/recruiter/jobs/new", label: "Post a Job" },
+  { to: "/recruiter/talent-pool", label: "Talent Pool" },
   { to: "/recruiter/messages", label: "Messages" },
 ];
 

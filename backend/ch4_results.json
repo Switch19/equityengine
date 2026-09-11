@@ -1,0 +1,635 @@
+{
+  "postgres": "PostgreSQL 18.4 on x86_64-windows",
+  "model_cold_load_ms": 160551.0,
+  "platform_stats": {
+    "total_candidates": 22,
+    "total_recruiters": 7,
+    "total_companies": 6,
+    "total_jobs": 11,
+    "active_jobs": 11,
+    "total_applications": 67,
+    "total_shortlisted": 6,
+    "jobs_by_screening_mode": {
+      "standard": 5,
+      "bdiof": 5,
+      "hybrid": 1
+    }
+  },
+  "education_tiers": {
+    "Graduate": 5,
+    "Bootcamp": 5,
+    "Self-Taught": 6,
+    "Undisclosed": 5
+  },
+  "status_mix": {
+    "rejected": 27,
+    "viewed": 19,
+    "applied": 15,
+    "offered": 1,
+    "interview": 4,
+    "shortlisted": 1
+  },
+  "audit_actions": {
+    "viewed": 76,
+    "interview": 1,
+    "revealed": 2,
+    "rejected": 3
+  },
+  "unit": {
+    "weights_sum_to_one": [
+      true,
+      1.0
+    ],
+    "score_all_zero": 0.0,
+    "score_all_one": 1.0,
+    "sweep_out_of_range": 0,
+    "sweep_non_monotonic": 0,
+    "badge_tiers": {
+      "1": "Declared",
+      "2": "Confirmed",
+      "3": "Verified"
+    },
+    "r_false_positive_present": false,
+    "stub_matched_skills": [],
+    "pseudonym_stable": true,
+    "pseudonym_unique": true,
+    "pseudonym_count": 22,
+    "pseudonym_sample": [
+      "Candidate-10134B",
+      "Candidate-894154",
+      "Candidate-29428B"
+    ],
+    "median_vs_mean": {
+      "group": [
+        0.3,
+        0.32,
+        0.95
+      ],
+      "median": 0.32,
+      "mean": 0.5233
+    },
+    "similarity_empty_candidate": 0.0,
+    "similarity_empty_reference": 0.0,
+    "similarity_blank_strings": 0.0,
+    "embedding_norms": [
+      1.0,
+      1.0
+    ],
+    "embedding_dim": 384,
+    "semantic_pair_shared_tokens": [],
+    "semantic_pair_similarity": 0.2276
+  },
+  "anonymisation": {
+    "applications_checked": 67,
+    "identity_key_leaks": 0,
+    "identity_token_comparisons": 628,
+    "identity_value_leaks": 0,
+    "per_field_hits": {},
+    "effectiveness_rate_percent": 100.0
+  },
+  "anonymisation_control": {
+    "revealed_has_identity_keys": [
+      "bio",
+      "cv_file_url",
+      "email",
+      "full_name",
+      "github_username",
+      "location",
+      "regional_terms",
+      "user_id"
+    ],
+    "anonymised_field_count": 12,
+    "revealed_field_count": 19,
+    "anonymised_keys": [
+      "application_id",
+      "applied_at",
+      "education_tier",
+      "evidence_score_breakdown",
+      "experience_level",
+      "growth_tip",
+      "is_anonymized",
+      "primary_reason",
+      "profile_completeness",
+      "pseudonym",
+      "skills",
+      "status"
+    ],
+    "same_evidence_score": true
+  },
+  "ranking_invariance": {
+    "jobs_compared": 10,
+    "identical": 10,
+    "detail": [
+      {
+        "job": "Full-Stack Developer",
+        "mode": "bdiof",
+        "n": 4,
+        "identical_order": true
+      },
+      {
+        "job": "QA Engineer",
+        "mode": "standard",
+        "n": 7,
+        "identical_order": true
+      },
+      {
+        "job": "Machine Learning Engineer",
+        "mode": "standard",
+        "n": 5,
+        "identical_order": true
+      },
+      {
+        "job": "DevOps Engineer",
+        "mode": "bdiof",
+        "n": 4,
+        "identical_order": true
+      },
+      {
+        "job": "Frontend Engineer",
+        "mode": "bdiof",
+        "n": 7,
+        "identical_order": true
+      },
+      {
+        "job": "Frontend Engineer",
+        "mode": "standard",
+        "n": 8,
+        "identical_order": true
+      },
+      {
+        "job": "Backend Developer",
+        "mode": "standard",
+        "n": 8,
+        "identical_order": true
+      },
+      {
+        "job": "QA Engineer",
+        "mode": "bdiof",
+        "n": 8,
+        "identical_order": true
+      },
+      {
+        "job": "Mobile Developer",
+        "mode": "bdiof",
+        "n": 7,
+        "identical_order": true
+      },
+      {
+        "job": "QA Engineer",
+        "mode": "standard",
+        "n": 8,
+        "identical_order": true
+      }
+    ]
+  },
+  "evidence_score_single_ms": {
+    "n": 22,
+    "mean_ms": 207.3,
+    "median_ms": 211.2,
+    "min_ms": 0.0,
+    "max_ms": 353.7,
+    "p95_ms": 298.6
+  },
+  "dossier_build_ms": {
+    "job": "Frontend Engineer",
+    "applicants": 8,
+    "n": 5,
+    "mean_ms": 1835.5,
+    "median_ms": 1845.6,
+    "min_ms": 1784.4,
+    "max_ms": 1892.0,
+    "p95_ms": 1892.0
+  },
+  "batch_encoding": {
+    "groups": 20,
+    "reference_texts": 4,
+    "per_candidate": {
+      "n": 3,
+      "mean_ms": 4526.7,
+      "median_ms": 4557.3,
+      "min_ms": 4446.9,
+      "max_ms": 4575.7,
+      "p95_ms": 4575.7
+    },
+    "batched": {
+      "n": 3,
+      "mean_ms": 1715.3,
+      "median_ms": 1701.9,
+      "min_ms": 1684.4,
+      "max_ms": 1759.7,
+      "p95_ms": 1759.7
+    },
+    "speedup": 2.68
+  },
+  "feedback": {
+    "diagnosed": 27,
+    "case_mix": {
+      "no_comparison_group": 15,
+      "diagnosed_deficit": 11,
+      "competitive_pool": 1
+    },
+    "cross_candidate_leaks": 8,
+    "latency_ms": {
+      "n": 27,
+      "mean_ms": 287.4,
+      "median_ms": 259.4,
+      "min_ms": 160.7,
+      "max_ms": 508.1,
+      "p95_ms": 431.7
+    },
+    "rows": [
+      {
+        "job": "Frontend Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Frontend Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [
+          "Test Candidate"
+        ],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Frontend Engineer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [
+          "Test Candidate"
+        ],
+        "reason": "Your community evidence was thinner than that of the applicants who were advanced \u2014 you scored 7 against their"
+      },
+      {
+        "job": "QA Engineer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [],
+        "reason": "Your CV and project evidence matched this role's requirements less closely than the applicants who were advanc"
+      },
+      {
+        "job": "QA Engineer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [],
+        "reason": "Your GitHub activity was the weakest part of your application relative to the applicants who were advanced \u2014 y"
+      },
+      {
+        "job": "Mobile Developer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Frontend Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "DevOps Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [
+          "Test Candidate"
+        ],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Full-Stack Developer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [
+          "Test Candidate"
+        ],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "QA Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [
+          "Test Candidate"
+        ],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "QA Engineer",
+        "case": "competitive_pool",
+        "names_other_candidates": [],
+        "reason": "Your evidence was competitive \u2014 you matched or exceeded the median of the 1 applicant advanced for this role o"
+      },
+      {
+        "job": "Machine Learning Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Frontend Engineer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [
+          "Test Candidate"
+        ],
+        "reason": "Your community evidence was thinner than that of the applicants who were advanced \u2014 you scored 5 against their"
+      },
+      {
+        "job": "QA Engineer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [],
+        "reason": "Your GitHub activity was the weakest part of your application relative to the applicants who were advanced \u2014 y"
+      },
+      {
+        "job": "DevOps Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [
+          "Test Candidate"
+        ],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "QA Engineer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [],
+        "reason": "Your GitHub activity was the weakest part of your application relative to the applicants who were advanced \u2014 y"
+      },
+      {
+        "job": "QA Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Frontend Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Full-Stack Developer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Backend Developer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [],
+        "reason": "Your GitHub activity was the weakest part of your application relative to the applicants who were advanced \u2014 y"
+      },
+      {
+        "job": "Frontend Engineer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [],
+        "reason": "Your GitHub activity was the weakest part of your application relative to the applicants who were advanced \u2014 y"
+      },
+      {
+        "job": "DevOps Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Mobile Developer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "Frontend Engineer",
+        "case": "no_comparison_group",
+        "names_other_candidates": [],
+        "reason": "This role was closed without a shortlist, so there is no comparison group to measure your application against."
+      },
+      {
+        "job": "QA Engineer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [],
+        "reason": "Your GitHub activity was the weakest part of your application relative to the applicants who were advanced \u2014 y"
+      },
+      {
+        "job": "QA Engineer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [],
+        "reason": "Your GitHub activity was the weakest part of your application relative to the applicants who were advanced \u2014 y"
+      },
+      {
+        "job": "Backend Developer",
+        "case": "diagnosed_deficit",
+        "names_other_candidates": [
+          "Test Candidate"
+        ],
+        "reason": "Your community evidence was thinner than that of the applicants who were advanced \u2014 you scored 53 against thei"
+      }
+    ],
+    "min_meaningful_gap": 0.05
+  },
+  "feedback_persistence": {
+    "rejected_total": 27,
+    "rejected_with_stored": 2,
+    "stale_on_non_rejected": 0
+  },
+  "visibility_gap": {
+    "rates_by_mode": {
+      "standard": {
+        "total_applications": 36,
+        "selected_count": 5,
+        "shortlist_rate": 0.1389,
+        "small_sample": false
+      },
+      "bdiof": {
+        "total_applications": 30,
+        "selected_count": 0,
+        "shortlist_rate": 0.0,
+        "small_sample": false
+      },
+      "hybrid": {
+        "total_applications": 1,
+        "selected_count": 1,
+        "shortlist_rate": 1.0,
+        "small_sample": true
+      }
+    },
+    "visibility_gap": -0.1389,
+    "visibility_gap_percent_improvement": -100.0,
+    "warnings": [
+      "Sample size for 'hybrid' is below 10 applications \u2014 treat this mode's rate as preliminary, not a reliable estimate."
+    ],
+    "methodology_note": "This is a between-groups comparison across different job postings, not a matched-pairs comparison of identical candidates evaluated under both modes. See bias_audit_engine.py module docstring for the full caveat."
+  },
+  "visibility_gap_latency_ms": {
+    "n": 5,
+    "mean_ms": 11.5,
+    "median_ms": 10.7,
+    "min_ms": 7.5,
+    "max_ms": 20.5,
+    "p95_ms": 20.5
+  },
+  "timeseries": [
+    {
+      "period": "2026-W24",
+      "standard_shortlist_rate": 0.0,
+      "bdiof_shortlist_rate": 0.0,
+      "visibility_gap": 0.0,
+      "standard_sample_size": 2,
+      "bdiof_sample_size": 5
+    },
+    {
+      "period": "2026-W25",
+      "standard_shortlist_rate": 0.4,
+      "bdiof_shortlist_rate": 0.0,
+      "visibility_gap": -0.4,
+      "standard_sample_size": 5,
+      "bdiof_sample_size": 7
+    },
+    {
+      "period": "2026-W26",
+      "standard_shortlist_rate": 0.25,
+      "bdiof_shortlist_rate": 0.0,
+      "visibility_gap": -0.25,
+      "standard_sample_size": 8,
+      "bdiof_sample_size": 2
+    },
+    {
+      "period": "2026-W27",
+      "standard_shortlist_rate": 0.0,
+      "bdiof_shortlist_rate": 0.0,
+      "visibility_gap": 0.0,
+      "standard_sample_size": 3,
+      "bdiof_sample_size": 5
+    },
+    {
+      "period": "2026-W28",
+      "standard_shortlist_rate": 0.0,
+      "bdiof_shortlist_rate": 0.0,
+      "visibility_gap": 0.0,
+      "standard_sample_size": 6,
+      "bdiof_sample_size": 4
+    },
+    {
+      "period": "2026-W29",
+      "standard_shortlist_rate": 0.3333,
+      "bdiof_shortlist_rate": 0.0,
+      "visibility_gap": -0.3333,
+      "standard_sample_size": 3,
+      "bdiof_sample_size": 4
+    },
+    {
+      "period": "2026-W30",
+      "standard_shortlist_rate": 0.0,
+      "bdiof_shortlist_rate": 0.0,
+      "visibility_gap": 0.0,
+      "standard_sample_size": 9,
+      "bdiof_sample_size": 3
+    }
+  ],
+  "timeseries_latency_ms": {
+    "n": 5,
+    "mean_ms": 2.1,
+    "median_ms": 1.8,
+    "min_ms": 1.8,
+    "max_ms": 2.8,
+    "p95_ms": 2.8
+  },
+  "diversity": {
+    "all_candidates_distribution": {
+      "Graduate": 23.8,
+      "Bootcamp": 23.8,
+      "Self-Taught": 28.6,
+      "Undisclosed": 23.8
+    },
+    "shortlisted_candidates_distribution": {
+      "Graduate": 25.0,
+      "Self-Taught": 25.0,
+      "Undisclosed": 50.0
+    },
+    "total_candidates": 21,
+    "total_shortlisted": 4,
+    "small_sample": true
+  },
+  "diversity_latency_ms": {
+    "n": 5,
+    "mean_ms": 16.4,
+    "median_ms": 3.8,
+    "min_ms": 2.7,
+    "max_ms": 67.6,
+    "p95_ms": 67.6
+  },
+  "recruiter_bias": [
+    {
+      "recruiter_id": "8f3f173d-cdf1-4d4d-90f9-c7bb66399db4",
+      "recruiter_name": "David Mensah",
+      "total_applications_received": 15,
+      "anonymized_shortlist_rate": 0.0,
+      "identity_visible_shortlist_rate": 0.2857,
+      "internal_visibility_gap": 0.2857,
+      "applicant_pool_graduate_share": 0.167,
+      "shortlisted_graduate_share": 0.0,
+      "bias_score": 73.8,
+      "small_sample": false
+    },
+    {
+      "recruiter_id": "c6993b9d-242b-4068-bc02-16de637b9446",
+      "recruiter_name": "Sarah Eze",
+      "total_applications_received": 15,
+      "anonymized_shortlist_rate": 0.0,
+      "identity_visible_shortlist_rate": 0.1429,
+      "internal_visibility_gap": 0.1429,
+      "applicant_pool_graduate_share": 0.455,
+      "shortlisted_graduate_share": 0.0,
+      "bias_score": 68.6,
+      "small_sample": false
+    },
+    {
+      "recruiter_id": "bba83679-bda4-4a42-8dca-f73e638c4a35",
+      "recruiter_name": "Ngozi Okafor",
+      "total_applications_received": 11,
+      "anonymized_shortlist_rate": 0.0,
+      "identity_visible_shortlist_rate": 0.2,
+      "internal_visibility_gap": 0.2,
+      "applicant_pool_graduate_share": 0.182,
+      "shortlisted_graduate_share": 0.0,
+      "bias_score": 58.2,
+      "small_sample": false
+    },
+    {
+      "recruiter_id": "f98050ba-09dc-41c6-b2f4-7e5c5d24b8c7",
+      "recruiter_name": "Adaeze Adeyemi",
+      "total_applications_received": 16,
+      "anonymized_shortlist_rate": 0.0,
+      "identity_visible_shortlist_rate": 0.1429,
+      "internal_visibility_gap": 0.1429,
+      "applicant_pool_graduate_share": 0.2,
+      "shortlisted_graduate_share": 0.0,
+      "bias_score": 48.6,
+      "small_sample": false
+    },
+    {
+      "recruiter_id": "e170dfa2-d8b6-42bb-8d4e-005e3bdfd5c4",
+      "recruiter_name": "okonkwo victor",
+      "total_applications_received": 1,
+      "anonymized_shortlist_rate": 1.0,
+      "identity_visible_shortlist_rate": null,
+      "internal_visibility_gap": null,
+      "applicant_pool_graduate_share": 1.0,
+      "shortlisted_graduate_share": 1.0,
+      "bias_score": 0.0,
+      "small_sample": true
+    },
+    {
+      "recruiter_id": "1e2eba9e-a63b-4f7f-b893-36ed045d654a",
+      "recruiter_name": "Kwame Eze",
+      "total_applications_received": 9,
+      "anonymized_shortlist_rate": 0.0,
+      "identity_visible_shortlist_rate": 0.0,
+      "internal_visibility_gap": 0.0,
+      "applicant_pool_graduate_share": 0.25,
+      "shortlisted_graduate_share": null,
+      "bias_score": 0.0,
+      "small_sample": true
+    }
+  ],
+  "recruiter_bias_latency_ms": {
+    "n": 5,
+    "mean_ms": 48.4,
+    "median_ms": 45.9,
+    "min_ms": 31.6,
+    "max_ms": 66.9,
+    "p95_ms": 66.9
+  }
+}

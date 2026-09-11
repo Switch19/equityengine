@@ -2,6 +2,7 @@ import DashboardLayout from "./DashboardLayout";
 
 const NAV_ITEMS = [
   { to: "/admin", label: "Overview", end: true },
+  { to: "/admin/users", label: "Users & Activity" },
   { to: "/admin/visibility-gap", label: "Visibility Gap" },
   { to: "/admin/diversity", label: "Diversity Report" },
   { to: "/admin/recruiters", label: "Recruiter Bias Scores" },

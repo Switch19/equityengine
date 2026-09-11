@@ -11,8 +11,6 @@ Engine phase.
 import math
 from datetime import datetime, timezone
 
-import httpx
-
 from app.data.certification_registry import classify_certification_tier
 
 STACKEXCHANGE_API_BASE = "https://api.stackexchange.com/2.3"
@@ -48,6 +46,10 @@ async def fetch_stackoverflow_stats(user_id: str) -> dict:
     url = f"{STACKEXCHANGE_API_BASE}/users/{user_id}"
     params = {"site": "stackoverflow"}
 
+    # Imported per call, not at module scope — see the note in
+    # ai_service._call_gemini for why httpx is deferred.
+    import httpx
+
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.get(url, params=params)
 
@@ -78,6 +80,8 @@ async def fetch_stackoverflow_stats(user_id: str) -> dict:
 async def fetch_devto_stats(username: str) -> dict:
     url = f"{DEVTO_API_BASE}/articles"
     params = {"username": username}
+
+    import httpx
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.get(url, params=params)

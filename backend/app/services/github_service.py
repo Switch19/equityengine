@@ -31,8 +31,6 @@ Design notes:
 """
 from datetime import datetime, timedelta, timezone
 
-import httpx
-
 from app.config import settings
 from app.services.nlp_service import find_phrase_matches
 from app.data.skill_taxonomy import SKILL_LOOKUP, ALL_SKILLS
@@ -63,6 +61,10 @@ def _auth_headers() -> dict:
 
 async def fetch_github_profile(username: str) -> dict:
     url = f"{GITHUB_API_BASE}/users/{username}"
+    # Imported per call, not at module scope — see the note in
+    # ai_service._call_gemini for why httpx is deferred.
+    import httpx
+
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.get(url, headers=_auth_headers())
 
@@ -81,6 +83,8 @@ async def fetch_github_profile(username: str) -> dict:
 async def fetch_github_repos(username: str, max_repos: int = 100) -> list[dict]:
     url = f"{GITHUB_API_BASE}/users/{username}/repos"
     params = {"per_page": min(max_repos, 100), "sort": "updated", "type": "owner"}
+
+    import httpx
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.get(url, headers=_auth_headers(), params=params)

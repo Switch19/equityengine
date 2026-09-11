@@ -33,7 +33,8 @@ export default function CompetencyDossier() {
         recruitersApi.getDossier(jobId),
       ]);
       setJob(jobRes.data);
-      setCandidates(dossierRes.data);
+      const dossierData = dossierRes.data;
+      setCandidates(Array.isArray(dossierData) ? dossierData : dossierData?.candidates || []);
     } catch (error) {
       showToast(getErrorMessage(error), "error");
     } finally {
@@ -102,7 +103,7 @@ export default function CompetencyDossier() {
     <div className="max-w-3xl mx-auto px-6 py-10 pb-24">
       <h1 className="text-2xl font-display font-semibold">{job?.title}</h1>
       <p className="text-slate text-sm mt-1 mb-8">
-        Screening mode: <span className="font-medium">{job?.screening_mode.toUpperCase()}</span> ·
+        Screening mode: <span className="font-medium">{job?.screening_mode?.toUpperCase() || "STANDARD"}</span> ·
         Ranked by Evidence Score
       </p>
 
@@ -111,7 +112,7 @@ export default function CompetencyDossier() {
       ) : (
         <div className="space-y-3">
           {candidates.map((c) => (
-            <div key={c.application_id} className="card overflow-hidden">
+            <div key={c.application_id || c.id} className="card overflow-hidden">
               <button
                 onClick={() => handleExpand(c.application_id)}
                 className="w-full flex items-center gap-4 p-4 text-left hover:bg-ink-50 transition-colors"
@@ -136,7 +137,7 @@ export default function CompetencyDossier() {
                 </div>
 
                 <span className="score-figure text-xl text-beacon-600 shrink-0">
-                  {Math.round(c.evidence_score_breakdown.evidence_score * 100)}
+                  {Math.round((c.evidence_score_breakdown?.evidence_score ?? c.evidence_score ?? 0) * 100)}
                 </span>
               </button>
 

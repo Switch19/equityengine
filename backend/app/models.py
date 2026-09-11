@@ -202,6 +202,26 @@ class Application(Base):
     was_anonymized_when_selected = Column(Boolean, nullable=True)
     evidence_score_at_application = Column(Float, nullable=True)
 
+    # --- Automated post-rejection feedback ---
+    #
+    # Written once, automatically, at the moment an application moves to
+    # `rejected` (see services/feedback_service.py and the status-change
+    # endpoint in routers/recruiters.py). Stored on the application row
+    # rather than recomputed on read for two reasons:
+    #
+    #   1. The diagnosis compares the candidate against the median of
+    #      the applicants who were advanced for THIS job AT THAT TIME.
+    #      That benchmark keeps moving as the recruiter works through
+    #      the pipeline, so a value recomputed weeks later would explain
+    #      a different decision than the one that was actually made.
+    #   2. It makes the feedback auditable — what the candidate was told
+    #      is durable, not a function of current database state.
+    #
+    # Nullable because every application predating this feature, and
+    # every application never rejected, legitimately has none.
+    primary_reason = Column(String, nullable=True)
+    growth_tip = Column(String, nullable=True)
+
     applied_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

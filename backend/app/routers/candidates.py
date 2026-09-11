@@ -12,7 +12,7 @@ import io
 from app.services.cv_generator import build_optimized_cv_pdf
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models import User, CandidateProfile, UserRole, Job, Application, ApplicationStatus, ScreeningMode
@@ -368,6 +368,18 @@ def update_my_profile(
 # Job browsing and applications
 # ---------------------------------------------------------------------
 
+def _serialize_application(application: Application) -> ApplicationOut:
+    """
+    ApplicationOut plus the job's title, which is not a column on
+    applications. Resolved here rather than added as a model property so
+    the extra query stays visible at the call site — callers that already
+    hold the Job, or that eager-load it, pay nothing.
+    """
+    out = ApplicationOut.model_validate(application)
+    out.job_title = application.job.title if application.job else None
+    return out
+
+
 @router.get("/jobs", response_model=list[JobOut])
 def browse_jobs(
     current_user: User = Depends(require_role(UserRole.candidate)),
@@ -443,7 +455,7 @@ async def apply_to_job(
         message=notify_text, related_id=application.id,
     )
 
-    return application
+    return _serialize_application(application)
 
 
 @router.get("/me/applications", response_model=list[ApplicationOut])
@@ -452,9 +464,13 @@ def get_my_applications(
     db: Session = Depends(get_db),
 ):
     profile = _get_own_profile(current_user, db)
-    return (
+    applications = (
         db.query(Application)
+        # Eager-loaded because every row's job title is serialized below;
+        # lazy loading would be one query per application.
+        .options(joinedload(Application.job))
         .filter(Application.candidate_id == profile.id)
         .order_by(Application.applied_at.desc())
         .all()
     )
+    return [_serialize_application(application) for application in applications]

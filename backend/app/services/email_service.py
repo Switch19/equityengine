@@ -148,3 +148,34 @@ async def send_profile_revealed_email(to_email: str, full_name: str, job_title: 
         cta_url=f"{settings.FRONTEND_URL}/candidate/applications",
     )
     return await send_email(to_email, f"Your profile was reviewed: {job_title}", html)
+
+
+async def send_job_invitation_email(
+    to_email: str, full_name: str, job_title: str, company_name: str | None = None,
+    note: str | None = None,
+) -> bool:
+    """
+    Sent when a recruiter invites a candidate from the Talent Pool.
+
+    The CTA points at the job browser rather than at an application,
+    because there is no application yet — an invitation asks the
+    candidate to apply, it does not apply on their behalf.
+    """
+    first_name = full_name.split(" ")[0]
+    who = f"<strong>{company_name}</strong>" if company_name else "A recruiter"
+    note_html = (
+        f"<p style='border-left:3px solid #F2B705;padding-left:12px;'>{note.strip()}</p>"
+        if note and note.strip() else ""
+    )
+    body = f"""
+    <p>Hi {first_name},</p>
+    <p>{who} found your Competency Profile in the EquityEngine talent pool and would like
+    you to apply for <strong>{job_title}</strong>.</p>
+    {note_html}
+    <p>This is an invitation, not an application — you still decide whether to apply.</p>
+    """
+    html = _wrap_template(
+        "You've been invited to apply", body, cta_text="View the role",
+        cta_url=f"{settings.FRONTEND_URL}/candidate/jobs",
+    )
+    return await send_email(to_email, f"Invitation to apply: {job_title}", html)

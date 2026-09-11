@@ -54,3 +54,32 @@ export function getWebSocketUrl() {
   const token = localStorage.getItem("equityengine_token");
   return `ws://127.0.0.1:8000/ws/connect?token=${token}`;
 }
+
+/**
+ * Same job as getErrorMessage, but for a request made with
+ * responseType: "blob" (file downloads).
+ *
+ * On a failed download the server still replies with FastAPI's normal
+ * JSON error body — but because the request asked for a blob, axios
+ * hands back error.response.data as a Blob rather than a parsed
+ * object, so getErrorMessage sees no .detail and falls through to its
+ * generic message. Reading the blob's text first recovers the real
+ * reason (e.g. "Candidate profile not found"), which is exactly the
+ * detail a user needs when a download button appears to do nothing.
+ *
+ * Async because Blob.text() is; callers must await it.
+ */
+export async function getBlobErrorMessage(error) {
+  const data = error.response?.data;
+  if (data instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await data.text());
+      if (typeof parsed.detail === "string") return parsed.detail;
+      if (Array.isArray(parsed.detail)) return parsed.detail.map((d) => d.msg).join("; ");
+    } catch {
+      // Not JSON (an HTML error page, or an empty body from a network
+      // failure) — fall through to the shared generic message.
+    }
+  }
+  return getErrorMessage(error);
+}

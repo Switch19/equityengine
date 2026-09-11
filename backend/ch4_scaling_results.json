@@ -1,0 +1,59 @@
+{
+  "job": "Frontend Engineer",
+  "rows": [
+    {
+      "applicants": 8,
+      "current_ms": 1700.7,
+      "batched_ms": 800.9,
+      "current_per_applicant_ms": 212.6,
+      "batched_per_applicant_ms": 100.1,
+      "speedup": 2.12,
+      "current_meets_nfr1_3s": true,
+      "batched_meets_nfr1_3s": true
+    },
+    {
+      "applicants": 25,
+      "current_ms": 5642.1,
+      "batched_ms": 2173.8,
+      "current_per_applicant_ms": 225.7,
+      "batched_per_applicant_ms": 87.0,
+      "speedup": 2.6,
+      "current_meets_nfr1_3s": false,
+      "batched_meets_nfr1_3s": true
+    },
+    {
+      "applicants": 50,
+      "current_ms": 11105.8,
+      "batched_ms": 3803.2,
+      "current_per_applicant_ms": 222.1,
+      "batched_per_applicant_ms": 76.1,
+      "speedup": 2.92,
+      "current_meets_nfr1_3s": false,
+      "batched_meets_nfr1_3s": false
+    },
+    {
+      "applicants": 100,
+      "current_ms": 22348.4,
+      "batched_ms": 7606.3,
+      "current_per_applicant_ms": 223.5,
+      "batched_per_applicant_ms": 76.1,
+      "speedup": 2.94,
+      "current_meets_nfr1_3s": false,
+      "batched_meets_nfr1_3s": false
+    },
+    {
+      "projection": "current",
+      "marginal_ms_per_applicant": 224.9,
+      "projected_500_ms": 112289.0,
+      "projected_500_s": 112.3,
+      "meets_nfr1_3s": false
+    },
+    {
+      "projection": "batched",
+      "marginal_ms_per_applicant": 76.1,
+      "projected_500_ms": 38031.0,
+      "projected_500_s": 38.0,
+      "meets_nfr1_3s": false
+    }
+  ]
+}

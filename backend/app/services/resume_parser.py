@@ -20,7 +20,6 @@ import io
 import re
 from functools import lru_cache
 
-import fitz  # this is pymupdf's import name, not a typo
 from docx import Document
 
 from app.services.nlp_service import build_phrase_matcher, find_phrase_matches
@@ -67,6 +66,12 @@ def extract_text(file_bytes: bytes, filename: str) -> str:
 
 
 def _extract_pdf_text(file_bytes: bytes) -> str:
+    # pymupdf (imported as `fitz`) loads a large native extension that
+    # costs several seconds, so it is imported here rather than at
+    # module scope — this module is reachable from the router imports,
+    # and only this one function actually needs it.
+    import fitz  # this is pymupdf's import name, not a typo
+
     text_parts = []
     with fitz.open(stream=file_bytes, filetype="pdf") as pdf:
         for page in pdf:

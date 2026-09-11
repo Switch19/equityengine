@@ -1,0 +1,168 @@
+{
+  "endpoints": {
+    "GET /health": {
+      "n": 12,
+      "mean_ms": 4.4,
+      "median_ms": 4.2,
+      "min_ms": 3.8,
+      "max_ms": 5.2,
+      "p95_ms": 5.2,
+      "bytes": 20
+    },
+    "GET /admin/stats": {
+      "n": 12,
+      "mean_ms": 39.0,
+      "median_ms": 38.6,
+      "min_ms": 37.1,
+      "max_ms": 43.9,
+      "p95_ms": 43.9,
+      "bytes": 204
+    },
+    "GET /admin/visibility-gap": {
+      "n": 12,
+      "mean_ms": 22.1,
+      "median_ms": 21.4,
+      "min_ms": 20.1,
+      "max_ms": 26.7,
+      "p95_ms": 26.7,
+      "bytes": 745
+    },
+    "GET /admin/visibility-gap/timeseries": {
+      "n": 12,
+      "mean_ms": 12.5,
+      "median_ms": 12.2,
+      "min_ms": 11.3,
+      "max_ms": 14.6,
+      "p95_ms": 14.6,
+      "bytes": 1041
+    },
+    "GET /admin/diversity-report": {
+      "n": 12,
+      "mean_ms": 14.5,
+      "median_ms": 14.5,
+      "min_ms": 13.5,
+      "max_ms": 16.4,
+      "p95_ms": 16.4,
+      "bytes": 261
+    },
+    "GET /admin/recruiters/bias-scores": {
+      "n": 12,
+      "mean_ms": 65.6,
+      "median_ms": 65.7,
+      "min_ms": 50.5,
+      "max_ms": 80.4,
+      "p95_ms": 80.4,
+      "bytes": 1995
+    },
+    "GET /admin/candidates": {
+      "n": 12,
+      "mean_ms": 32.8,
+      "median_ms": 32.6,
+      "min_ms": 31.3,
+      "max_ms": 34.5,
+      "p95_ms": 34.5,
+      "bytes": 11761
+    },
+    "GET /admin/activity-log": {
+      "n": 12,
+      "mean_ms": 32.7,
+      "median_ms": 34.1,
+      "min_ms": 22.1,
+      "max_ms": 46.2,
+      "p95_ms": 46.2,
+      "bytes": 21838
+    },
+    "GET /candidates/jobs": {
+      "n": 12,
+      "mean_ms": 17.5,
+      "median_ms": 17.5,
+      "min_ms": 16.7,
+      "max_ms": 18.7,
+      "p95_ms": 18.7,
+      "bytes": 5766
+    },
+    "GET /candidates/me/profile": {
+      "n": 12,
+      "mean_ms": 16.8,
+      "median_ms": 8.3,
+      "min_ms": 7.9,
+      "max_ms": 101.4,
+      "p95_ms": 101.4,
+      "bytes": 474
+    },
+    "GET /candidates/me/applications": {
+      "n": 12,
+      "mean_ms": 11.2,
+      "median_ms": 10.3,
+      "min_ms": 9.6,
+      "max_ms": 14.3,
+      "p95_ms": 14.3,
+      "bytes": 2
+    },
+    "GET /candidates/me/competency-profile": {
+      "n": 12,
+      "mean_ms": 8.8,
+      "median_ms": 8.7,
+      "min_ms": 8.3,
+      "max_ms": 9.6,
+      "p95_ms": 9.6,
+      "bytes": 140
+    },
+    "GET /recruiters/jobs": {
+      "n": 12,
+      "mean_ms": 8.5,
+      "median_ms": 8.3,
+      "min_ms": 8.0,
+      "max_ms": 9.8,
+      "p95_ms": 9.8,
+      "bytes": 991
+    },
+    "GET /recruiters/jobs/:id/candidates (n=8)": {
+      "n": 12,
+      "mean_ms": 1917.8,
+      "median_ms": 1900.2,
+      "min_ms": 1871.3,
+      "max_ms": 1976.4,
+      "p95_ms": 1976.4,
+      "bytes": 9462
+    },
+    "GET /recruiters/talent-pool": {
+      "n": 12,
+      "mean_ms": 29.8,
+      "median_ms": 29.1,
+      "min_ms": 25.4,
+      "max_ms": 35.7,
+      "p95_ms": 35.7,
+      "bytes": 29111
+    },
+    "GET /recruiters/jobs/:id/candidates [BDIOF] (n=8)": {
+      "n": 12,
+      "mean_ms": 2377.9,
+      "median_ms": 2361.8,
+      "min_ms": 2286.0,
+      "max_ms": 2511.8,
+      "p95_ms": 2511.8,
+      "bytes": 7531
+    },
+    "_bdiof_http_check": {
+      "rows": 8,
+      "identity_fields_non_null": [],
+      "sample_pseudonyms": [
+        "Candidate-29428B",
+        "Candidate-349CBD",
+        "Candidate-E1D1D5",
+        "Candidate-6E41EB"
+      ]
+    }
+  },
+  "access_control": {
+    "admin endpoint, no token": 401,
+    "admin endpoint, candidate token": 403,
+    "admin endpoint, recruiter token": 403,
+    "recruiter endpoint, candidate token": 403,
+    "candidate endpoint, recruiter token": 403,
+    "admin endpoint, malformed token": 401,
+    "recruiter requesting another recruiter's dossier": 403
+  },
+  "repeats": 12
+}

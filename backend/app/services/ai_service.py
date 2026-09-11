@@ -22,8 +22,6 @@ implementation detail.
 import json
 import re
 
-import httpx
-
 from app.config import settings
 
 GEMINI_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -52,6 +50,12 @@ async def _call_gemini(prompt: str) -> str:
         raise AIProviderError("GEMINI_API_KEY not configured")
 
     url = GEMINI_URL_TEMPLATE.format(model=settings.GEMINI_MODEL)
+    # httpx is imported per call rather than at module scope: it pulls in
+    # its own HTTP/2 and CLI dependencies (~0.2s), and this module is
+    # reachable from the router imports, so at module scope every
+    # `import main` paid for it even with no AI provider configured.
+    import httpx
+
     async with httpx.AsyncClient(timeout=20.0) as client:
         response = await client.post(
             url,
@@ -71,6 +75,8 @@ async def _call_gemini(prompt: str) -> str:
 async def _call_groq(prompt: str) -> str:
     if not settings.GROQ_API_KEY:
         raise AIProviderError("GROQ_API_KEY not configured")
+
+    import httpx
 
     async with httpx.AsyncClient(timeout=20.0) as client:
         response = await client.post(

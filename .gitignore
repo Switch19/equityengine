@@ -17,3 +17,9 @@ Thumbs.db
 
 # Database
 *.sqlite3
+
+# Local & Editor Configs
+.claude/
+.venv/
+.vscode/
+.env

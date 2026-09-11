@@ -73,6 +73,13 @@ def build_anonymized_candidate_view(profile: CandidateProfile, job: Job, applica
         "profile_completeness": profile.profile_completeness,
         "status": application.status.value,
         "applied_at": application.applied_at.isoformat(),
+        # Safe in the anonymised view: the auto-generated rejection
+        # feedback is written from this candidate's own pipeline scores
+        # and an aggregate median of the applicants advanced for this
+        # job. It names no other candidate and no institution — see
+        # feedback_service.py, which is where that property is enforced.
+        "primary_reason": application.primary_reason,
+        "growth_tip": application.growth_tip,
         "is_anonymized": True,
     }
 
@@ -105,6 +112,8 @@ def build_revealed_candidate_view(profile: CandidateProfile, user, job: Job, app
         "profile_completeness": profile.profile_completeness,
         "status": application.status.value,
         "applied_at": application.applied_at.isoformat(),
+        "primary_reason": application.primary_reason,
+        "growth_tip": application.growth_tip,
         "is_anonymized": False,
     }
 

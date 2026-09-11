@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { candidatesApi } from "../../api/candidates";
 import { useToast } from "../../context/ToastContext";
-import { getErrorMessage } from "../../api/client";
+import { getErrorMessage, getBlobErrorMessage } from "../../api/client";
 import LoadingSkeleton from "../../components/LoadingSkeleton";
 import EmptyState from "../../components/EmptyState";
 import SkillBadge from "../../components/SkillBadge";
@@ -14,9 +14,23 @@ const COMPONENT_LABELS = {
   l_traj: { label: "Learning Trajectory", weight: "15%" },
 };
 
+/**
+ * Pulls the PDF filename out of the response's Content-Disposition
+ * header so the saved file matches what the server named it
+ * (<Full_Name>_CV.pdf), instead of hardcoding a guess at the name on
+ * the client. Falls back to a sensible default when the header is
+ * absent — which is what happens if CORS ever stops exposing it.
+ */
+function filenameFromResponse(response, fallback) {
+  const disposition = response.headers?.["content-disposition"];
+  const match = disposition && /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+  return match ? decodeURIComponent(match[1].trim()) : fallback;
+}
+
 export default function CompetencyProfile() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
   const { showToast } = useToast();
 
   const load = useCallback(async () => {
@@ -34,6 +48,35 @@ export default function CompetencyProfile() {
     load();
   }, [load]);
 
+  async function handleDownloadProfile() {
+    setDownloading(true);
+    let objectUrl;
+    try {
+      const res = await candidatesApi.downloadOptimizedProfile();
+
+      // The explicit MIME type matters: a Blob built without it gets
+      // type "" and some browsers then refuse to treat the download as
+      // a PDF (opening a blank tab or saving an extensionless file)
+      // rather than saving it cleanly.
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      objectUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.setAttribute("download", filenameFromResponse(res, "EquityEngine_Profile.pdf"));
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      showToast(await getBlobErrorMessage(error), "error");
+    } finally {
+      // Revoking releases the blob; without this the PDF stays held in
+      // memory for the lifetime of the tab, once per download.
+      if (objectUrl) window.URL.revokeObjectURL(objectUrl);
+      setDownloading(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-10">
@@ -47,10 +90,26 @@ export default function CompetencyProfile() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-10 pb-24">
-      <h1 className="text-2xl font-display font-semibold">Your Competency Profile</h1>
-      <p className="text-slate text-sm mt-1 mb-8">
-        This is the same view a recruiter sees in your Competency Dossier — minus your identity,
-        if the job you're applying to uses anonymised (BDIOF) screening.
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-display font-semibold">Your Competency Profile</h1>
+          <p className="text-slate text-sm mt-1">
+            This is the same view a recruiter sees in your Competency Dossier — minus your identity,
+            if the job you're applying to uses anonymised (BDIOF) screening.
+          </p>
+        </div>
+        <button
+          onClick={handleDownloadProfile}
+          disabled={downloading}
+          className="btn-secondary shrink-0"
+        >
+          {downloading ? "Preparing…" : "Download Profile (PDF)"}
+        </button>
+      </div>
+
+      <p className="text-xs text-slate mt-3 mb-8">
+        The PDF is generated from all three evidence pipelines combined — CV, GitHub, and community
+        — so it works even if you never uploaded a formal CV.
       </p>
 
       <section className="card p-6">

@@ -252,6 +252,14 @@ class CandidateProfileOut(BaseModel):
     devto_data: Optional[dict] = None
     peer_endorsements: Optional[list] = None
 
+    # The two pipeline-owned sub-scores are exposed here (not only on
+    # the GitHub/community link responses) so the profile builder can
+    # show what each pipeline currently contributes to the Evidence
+    # Score, and how much a just-completed link moved it. Defaults keep
+    # this additive for any client reading the older shape.
+    g_act_score: float = 0.0
+    c_peer_score: float = 0.0
+
     evidence_score: float
     badges: Optional[dict] = None
     profile_completeness: float
@@ -335,6 +343,20 @@ class ApplicationOut(BaseModel):
     status: ApplicationStatus
     screening_mode_at_application: ScreeningMode
     evidence_score_at_application: Optional[float] = None
+
+    # Auto-generated at the moment of rejection (see
+    # services/feedback_service.py). Both are None for any application
+    # that has not been rejected, and for rejections recorded before
+    # this feature existed — the candidate UI treats a missing pair as
+    # "no diagnostics available" rather than as an error.
+    primary_reason: Optional[str] = None
+    growth_tip: Optional[str] = None
+
+    # Resolved from the related Job so the candidate's own views can
+    # name the role without a request per application. Optional because
+    # it is populated by the router, not read off the ORM row.
+    job_title: Optional[str] = None
+
     applied_at: datetime
     updated_at: datetime
 
@@ -373,10 +395,88 @@ class DossierCandidateOut(BaseModel):
     status: str
     applied_at: str
 
+    # Present only on a rejected application, and only for information —
+    # the recruiter sees what the candidate was told, but never sets it.
+    primary_reason: Optional[str] = None
+    growth_tip: Optional[str] = None
+
 
 class ViewLimitStatus(BaseModel):
     limited: bool
     views_so_far: Optional[int] = None
+
+
+# ---------------------------------------------------------------------
+# Recruiter Talent Pool schemas
+#
+# The Talent Pool is identity-visible sourcing across all candidates,
+# as distinct from the anonymised, per-job Competency Dossier above.
+# See services/talent_pool_service.py for why the two differ, and for
+# the fields deliberately absent here (location, bio, CV file, and any
+# per-job application status).
+# ---------------------------------------------------------------------
+
+class TalentPoolPipelineOut(BaseModel):
+    label: str
+    score: float          # 0.0-1.0, this pipeline's own strength
+    weight: float         # its share of the Evidence Score
+    contribution: float   # score * weight — what it adds to the total
+    linked: bool          # whether the candidate connected this pipeline
+    detail: str           # short human-readable summary of the evidence
+
+
+class TalentPoolSkillOut(BaseModel):
+    skill: str
+    tier: str
+    sources: list[str]
+
+
+class TalentPoolCandidateOut(BaseModel):
+    candidate_id: str
+    user_id: str
+    full_name: str
+    email: str
+    experience_level: str
+    education_tier: str
+    evidence_score: float
+    profile_completeness: float
+    evidence_score_breakdown: EvidenceScoreBreakdown
+    pipelines: dict[str, TalentPoolPipelineOut]
+    skills: list[str]
+    top_skills: list[TalentPoolSkillOut]
+    github_username: Optional[str] = None
+    total_applications: int
+    invited_job_ids: list[str]
+    registered_at: datetime
+
+
+class TalentPoolOut(BaseModel):
+    candidates: list[TalentPoolCandidateOut]
+    total_count: int
+    limit: int
+    offset: int
+
+
+class TalentPoolInviteRequest(BaseModel):
+    job_id: uuid.UUID
+    note: Optional[str] = None
+
+    @field_validator("note")
+    @classmethod
+    def note_max_length(cls, v: Optional[str]) -> Optional[str]:
+        # The note is embedded in a notification the candidate reads in
+        # a list; a long one would be truncated in the UI anyway, so it
+        # is rejected here rather than silently cut off.
+        if v is not None and len(v) > 500:
+            raise ValueError("Note must be 500 characters or fewer")
+        return v
+
+
+class TalentPoolInviteResponse(BaseModel):
+    detail: str
+    candidate_id: str
+    job_id: str
+    job_title: str
 
 
 # ---------------------------------------------------------------------
@@ -437,6 +537,76 @@ class PlatformStatsOut(BaseModel):
     total_applications: int
     total_shortlisted: int
     jobs_by_screening_mode: dict[str, int]
+
+
+# ---------------------------------------------------------------------
+# Admin registry / activity-feed schemas
+#
+# These shape the Admin Dashboard's live monitoring view. They carry
+# real names and email addresses, so — unlike most schemas in this file
+# — they must only ever be returned from a route guarded by
+# require_role(UserRole.admin). See routers/admin.py.
+# ---------------------------------------------------------------------
+
+class AdminCandidateRowOut(BaseModel):
+    candidate_id: Optional[str] = None  # None until the candidate builds a profile
+    user_id: str
+    full_name: str
+    email: str
+    is_active: bool
+    has_profile: bool
+    location: Optional[str] = None
+    education_tier: Optional[str] = None
+    experience_level: Optional[str] = None
+    evidence_score: float
+    profile_completeness: float
+    has_cv: bool
+    has_github: bool
+    has_community: bool
+    total_applications: int
+    total_shortlisted: int
+    registered_at: datetime
+    last_action_at: Optional[datetime] = None
+
+
+class AdminRecruiterRowOut(BaseModel):
+    user_id: str
+    full_name: str
+    email: str
+    is_active: bool
+    company_name: Optional[str] = None
+    total_jobs: int
+    active_jobs: int
+    total_applications_received: int
+    total_shortlisted: int
+    total_views: int
+    total_reveals: int
+    registered_at: datetime
+    last_action_at: Optional[datetime] = None
+
+
+class AdminAuditLogRowOut(BaseModel):
+    id: str
+    action: str
+    was_anonymized: bool
+    screening_mode: Optional[str] = None
+    time_spent_seconds: Optional[int] = None
+    created_at: datetime
+    recruiter_id: str
+    recruiter_name: str
+    candidate_id: str
+    candidate_name: str
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+
+
+class AdminActivityFeedOut(BaseModel):
+    logs: list[AdminAuditLogRowOut]
+    total_count: int
+    limit: int
+    offset: int
+    available_actions: list[str]
+    server_time: datetime
 
 
 # ---------------------------------------------------------------------

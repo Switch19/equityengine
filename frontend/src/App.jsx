@@ -23,9 +23,11 @@ import CompanyProfile from "./pages/recruiter/CompanyProfile";
 import PostJob from "./pages/recruiter/PostJob";
 import JobsList from "./pages/recruiter/JobsList";
 import CompetencyDossier from "./pages/recruiter/CompetencyDossier";
+import TalentPool from "./pages/recruiter/TalentPool";
 import RecruiterMessages from "./pages/recruiter/Messages";
 import AdminLayout from "./components/AdminLayout";
 import AdminOverview from "./pages/admin/AdminOverview";
+import UserRegistry from "./pages/admin/UserRegistry";
 import VisibilityGapPage from "./pages/admin/VisibilityGapPage";
 import DiversityReportPage from "./pages/admin/DiversityReportPage";
 import RecruiterBiasScores from "./pages/admin/RecruiterBiasScores";
@@ -71,6 +73,7 @@ export default function App() {
           <Route path="jobs" element={<JobsList />} />
           <Route path="jobs/new" element={<PostJob />} />
           <Route path="jobs/:jobId" element={<CompetencyDossier />} />
+          <Route path="talent-pool" element={<TalentPool />} />
           <Route path="messages" element={<RecruiterMessages />} />
         </Route>
 
@@ -83,6 +86,7 @@ export default function App() {
           }
         >
           <Route index element={<AdminOverview />} />
+          <Route path="users" element={<UserRegistry />} />
           <Route path="visibility-gap" element={<VisibilityGapPage />} />
           <Route path="diversity" element={<DiversityReportPage />} />
           <Route path="recruiters" element={<RecruiterBiasScores />} />

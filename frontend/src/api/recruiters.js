@@ -23,4 +23,25 @@ export const recruitersApi = {
 
   revealCandidate: (jobId, applicationId) =>
     apiClient.post(`/recruiters/jobs/${jobId}/candidates/${applicationId}/reveal`),
+
+  // Talent Pool — sourcing across all candidates, not scoped to a job.
+  // Filtering is server-side (see routers/recruiters.py), so params are
+  // passed through rather than applied to a cached list. Null/empty
+  // values are dropped so an untouched filter doesn't become
+  // `?search=` in the query string.
+  getTalentPool: ({ search, minScore, limit, offset } = {}) =>
+    apiClient.get("/recruiters/talent-pool", {
+      params: {
+        ...(search ? { search } : {}),
+        ...(minScore != null && minScore > 0 ? { min_score: minScore } : {}),
+        ...(limit != null ? { limit } : {}),
+        ...(offset ? { offset } : {}),
+      },
+    }),
+
+  inviteToJob: (candidateId, jobId, note) =>
+    apiClient.post(`/recruiters/talent-pool/${candidateId}/invite`, {
+      job_id: jobId,
+      note: note || null,
+    }),
 };

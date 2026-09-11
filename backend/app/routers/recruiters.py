@@ -1,11 +1,14 @@
 """
 Recruiter-facing endpoints: company profile, job posting, the
 Competency Dossier (ranked, mode-appropriate candidate view),
-shortlisting workflow, and progressive identity reveal.
+shortlisting workflow, progressive identity reveal, and the Talent Pool
+(identity-visible sourcing across all candidates — see
+services/talent_pool_service.py for how that differs from the dossier
+and why).
 """
 import uuid as uuid_lib
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -16,6 +19,7 @@ from app.models import (
 from app.schemas import (
     CompanyCreate, CompanyOut, JobCreate, JobUpdate, JobOut,
     ApplicationStatusUpdate, DossierCandidateOut, ViewLimitStatus,
+    TalentPoolOut, TalentPoolInviteRequest, TalentPoolInviteResponse,
 )
 from app.deps import require_role
 from app.services.dossier_service import (
@@ -23,8 +27,15 @@ from app.services.dossier_service import (
     rank_applications_by_evidence_score,
 )
 from app.services.audit_service import log_action, check_view_limit, has_been_revealed
+from app.services.feedback_service import generate_rejection_feedback
 from app.services.notification_service import create_notification
-from app.services.email_service import send_application_status_email, send_profile_revealed_email
+from app.services.email_service import (
+    send_application_status_email, send_profile_revealed_email, send_job_invitation_email,
+)
+from app.services.talent_pool_service import (
+    INVITATION_TYPE, InvitationError, build_invitation_message, list_talent_pool,
+    validate_invitation,
+)
 
 router = APIRouter(prefix="/recruiters", tags=["recruiters"])
 
@@ -257,6 +268,23 @@ async def update_application_status(
     elif not already_revealed_before:
         application.was_anonymized_when_selected = True
 
+    # Automated post-rejection feedback. Generated here, after the
+    # recruiter's decision is already made, so it can only ever explain
+    # the outcome — it is never an input to it (see
+    # services/feedback_service.py).
+    if payload.status == ApplicationStatus.rejected:
+        feedback = generate_rejection_feedback(db, application, job)
+        application.primary_reason = feedback["primary_reason"]
+        application.growth_tip = feedback["growth_tip"]
+    else:
+        # A status moving off `rejected` — a recruiter correcting a
+        # misclick, or reconsidering — must not leave the old diagnosis
+        # behind. The candidate's dashboard shows this card whenever the
+        # fields are populated, so stale text would keep explaining a
+        # rejection that no longer exists.
+        application.primary_reason = None
+        application.growth_tip = None
+
     db.commit()
 
     log_action(
@@ -327,3 +355,96 @@ async def reveal_candidate(
         await send_profile_revealed_email(profile.user.email, profile.user.full_name, job.title)
 
     return _build_view_for_application(db, job, application, current_user)
+
+
+# ---------------------------------------------------------------------
+# Talent Pool
+# ---------------------------------------------------------------------
+
+@router.get("/talent-pool", response_model=TalentPoolOut)
+def get_talent_pool(
+    search: str | None = Query(None, description="Match a candidate name or any verified skill"),
+    min_score: float | None = Query(
+        None, ge=0.0, le=1.0, description="Minimum Evidence Score, on the 0.0-1.0 scale"
+    ),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(require_role(UserRole.recruiter)),
+    db: Session = Depends(get_db),
+):
+    """
+    Every registered candidate with a built profile, strongest Evidence
+    Score first, for proactive sourcing.
+
+    Unlike the Competency Dossier, this is identity-visible and is NOT
+    scoped to one job — so it deliberately withholds location, bio, CV
+    file, and any per-job application state. The reasoning for that
+    split, and why it does not undercut BDIOF, is in
+    services/talent_pool_service.py's module docstring; read it before
+    widening the field set here.
+
+    Browsing this list logs no audit entry and does not count against
+    the per-candidate view limit. Both of those exist to constrain
+    repeated re-examination of a specific APPLICANT before deciding on
+    them; nobody is being decided on here, and there is no application
+    to decide.
+    """
+    return list_talent_pool(db, search=search, min_score=min_score, limit=limit, offset=offset)
+
+
+@router.post(
+    "/talent-pool/{candidate_id}/invite",
+    response_model=TalentPoolInviteResponse,
+    status_code=201,
+)
+async def invite_candidate_to_job(
+    candidate_id: uuid_lib.UUID,
+    payload: TalentPoolInviteRequest,
+    current_user: User = Depends(require_role(UserRole.recruiter)),
+    db: Session = Depends(get_db),
+):
+    """
+    Invites a candidate to apply for one of this recruiter's active jobs.
+
+    An invitation is an in-app notification plus an email; it is NOT an
+    application. The candidate still has to apply, and their application
+    then enters the same pipeline as any other — anonymised first if the
+    job runs in BDIOF or Hybrid mode. That boundary is what keeps
+    sourcing from becoming a way around anonymised screening: a
+    recruiter can ask someone to apply, but cannot place, rank, or
+    advance them from here.
+
+    Nothing is logged to the audit trail, because an invitation is not
+    an action taken ON an application — there is no application yet, and
+    a log row referencing a job the candidate has not applied to would
+    misrepresent the Bias Audit Engine's shortlist-rate denominators.
+    """
+    try:
+        profile, candidate_user, job = validate_invitation(
+            db, current_user, candidate_id, payload.job_id
+        )
+    except InvitationError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+    company = db.query(Company).filter(Company.recruiter_id == current_user.id).first()
+    company_name = company.name if company else None
+
+    await create_notification(
+        db, user_id=candidate_user.id, notification_type=INVITATION_TYPE,
+        message=build_invitation_message(job, company_name, payload.note),
+        # related_id is the JOB, not an application — there is no
+        # application yet, and it is what the candidate needs to open.
+        # talent_pool_service reads this back to mark already-invited
+        # candidates, so it is load-bearing, not just informational.
+        related_id=job.id,
+    )
+    await send_job_invitation_email(
+        candidate_user.email, candidate_user.full_name, job.title, company_name, payload.note
+    )
+
+    return TalentPoolInviteResponse(
+        detail=f"Invitation sent to {candidate_user.full_name}.",
+        candidate_id=str(profile.id),
+        job_id=str(job.id),
+        job_title=job.title,
+    )

@@ -7,6 +7,12 @@ export const candidatesApi = {
 
   getCompetencyProfile: () => apiClient.get("/candidates/me/competency-profile"),
 
+  // Optimized CV/profile PDF, generated server-side from all three
+  // evidence pipelines. responseType "blob" is required: without it
+  // axios parses the PDF bytes as text and the saved file is corrupt.
+  downloadOptimizedProfile: () =>
+    apiClient.get("/candidates/me/cv/download", { responseType: "blob" }),
+
   uploadCV: (file) => {
     const formData = new FormData();
     formData.append("file", file);

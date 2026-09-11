@@ -13,8 +13,14 @@ export default function ProfileBuilder() {
     try {
       const res = await candidatesApi.getProfile();
       setProfile(res.data);
+      // Returned as well as stored: a section that just linked a
+      // pipeline awaits this to read the post-update scores directly,
+      // rather than waiting a render for the refreshed prop to arrive
+      // (which would flash a 0-delta before settling).
+      return res.data;
     } catch (error) {
       showToast(getErrorMessage(error), "error");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -65,6 +71,97 @@ function ProfileCompletenessBar({ percent }) {
           style={{ width: `${percent}%` }}
         />
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Evidence Score contribution + delta display
+// ---------------------------------------------------------------------
+
+const asPercent = (value) => Math.round((value ?? 0) * 100);
+
+/**
+ * Freezes the two numbers a pipeline link can move, so a section can
+ * take a "before" reading, run the mutation, and compare against an
+ * "after" reading from the same source (the refreshed profile).
+ */
+function scoreSnapshot(profile, componentKey) {
+  return {
+    component: profile?.[componentKey] ?? 0,
+    evidence: profile?.evidence_score ?? 0,
+  };
+}
+
+/**
+ * One before → after line. The change is the difference of the two
+ * ROUNDED figures rather than the rounded difference, so the three
+ * numbers on screen always reconcile — a rounded raw difference can
+ * read "+1" between two values that both display the same percent.
+ */
+function DeltaRow({ name, before, after, unit }) {
+  const from = asPercent(before);
+  const to = asPercent(after);
+  const change = to - from;
+  const tone = change > 0 ? "text-verified" : change < 0 ? "text-gap" : "text-slate";
+
+  return (
+    <div className="flex justify-between items-baseline gap-3">
+      <span className="text-slate">{name}</span>
+      <span className="score-figure whitespace-nowrap">
+        <span aria-label={`from ${from}${unit} to ${to}${unit}`}>
+          <span className="text-slate">{from}{unit}</span>
+          <span className="text-slate mx-1">→</span>
+          <span>{to}{unit}</span>
+        </span>
+        <span className={`ml-2 ${tone}`}>
+          {change > 0 ? `+${change}` : change < 0 ? `${change}` : "no change"}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * What this pipeline currently contributes to the Evidence Score, plus
+ * the movement from the link the candidate just completed. The current
+ * figure renders whenever the pipeline has evidence; the delta panel
+ * only after an action in this session, since a before-reading doesn't
+ * survive a page reload.
+ */
+function ScoreContribution({ label, weight, current, delta }) {
+  return (
+    <div className="mt-4 pt-4 border-t border-ink-100">
+      <div className="flex justify-between text-sm items-baseline gap-3">
+        <span className="text-slate">
+          {label} <span className="text-xs">({weight} of Evidence Score)</span>
+        </span>
+        <span className="score-figure">{asPercent(current)}%</span>
+      </div>
+      <div className="h-1.5 bg-ink-50 rounded-full overflow-hidden mt-1.5">
+        <div
+          className="h-full bg-beacon transition-all duration-500"
+          style={{ width: `${asPercent(current)}%` }}
+        />
+      </div>
+
+      {delta && (
+        <div className="mt-3 bg-beacon-50 rounded p-3 text-sm space-y-1.5">
+          <p className="text-xs font-medium text-ink">Change from this update</p>
+          <DeltaRow
+            name={label}
+            before={delta.before.component}
+            after={delta.after.component}
+            unit="%"
+          />
+          <DeltaRow
+            name="Evidence Score"
+            before={delta.before.evidence}
+            after={delta.after.evidence}
+            unit="/100"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -137,6 +234,9 @@ function CVSection({ profile, onUpdated }) {
           <p><span className="text-slate">Skills:</span> {lastResult.cv_skills.join(", ") || "none detected"}</p>
           <p><span className="text-slate">Experience level:</span> {lastResult.experience_level}</p>
           <p><span className="text-slate">Education tier:</span> {lastResult.education_tier}</p>
+
+          <RegionalTermsPanel terms={lastResult.regional_terms} />
+
           {lastResult.ats_suggestions?.length > 0 && (
             <div>
               <p className="text-slate">Suggestions to improve ATS compatibility:</p>
@@ -151,6 +251,55 @@ function CVSection({ profile, onUpdated }) {
   );
 }
 
+/**
+ * Renders the regional terminology the parser matched in the CV. This is
+ * the bias-relevant half of the extraction: these phrases are exactly
+ * what a keyword-matching ATS discards, so they are surfaced explicitly
+ * rather than folded into the skills list. Detection is context, never a
+ * scoring bonus or penalty — see app/data/regional_terms.py.
+ */
+function RegionalTermsPanel({ terms }) {
+  const groups = [
+    { label: "Institutions", items: terms?.institutions },
+    { label: "Tech programmes & fellowships", items: terms?.tech_programmes },
+    { label: "Other regional terms", items: terms?.other_terms },
+  ].filter((g) => g.items?.length > 0);
+
+  return (
+    <div className="pt-2">
+      <p className="font-medium">
+        Regional context terms detected{" "}
+        <span className="font-normal text-slate">(bypasses traditional ATS filtering)</span>
+      </p>
+
+      {groups.length === 0 ? (
+        <p className="text-slate mt-1">
+          None detected in this CV. This does not affect your Evidence Score.
+        </p>
+      ) : (
+        <>
+          <div className="mt-2 space-y-2">
+            {groups.map((group) => (
+              <div key={group.label}>
+                <p className="text-xs text-slate">{group.label}</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {group.items.map((term) => (
+                    <span key={term} className="badge badge-declared">{term}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate mt-2">
+            A conventional ATS would score these as unrecognised keywords. Here they are kept as
+            context recruiters can see — they are never scored as a bonus or a penalty.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------
 // Pipeline 2: Informal (GitHub)
 // ---------------------------------------------------------------------
@@ -158,17 +307,20 @@ function CVSection({ profile, onUpdated }) {
 function GitHubSection({ profile, onUpdated }) {
   const [username, setUsername] = useState("");
   const [linking, setLinking] = useState(false);
+  const [delta, setDelta] = useState(null);
   const { showToast } = useToast();
 
   async function handleLink(e) {
     e.preventDefault();
     if (!username.trim()) return;
     setLinking(true);
+    const before = scoreSnapshot(profile, "g_act_score");
     try {
       await candidatesApi.linkGithub(username.trim());
       showToast("GitHub account linked and analysed.", "success");
       setUsername("");
-      onUpdated();
+      const fresh = await onUpdated();
+      if (fresh) setDelta({ before, after: scoreSnapshot(fresh, "g_act_score") });
     } catch (error) {
       showToast(getErrorMessage(error), "error");
     } finally {
@@ -209,6 +361,15 @@ function GitHubSection({ profile, onUpdated }) {
           </button>
         </form>
       )}
+
+      {isLinked && (
+        <ScoreContribution
+          label="GitHub Activity"
+          weight="25%"
+          current={profile?.g_act_score}
+          delta={delta}
+        />
+      )}
     </section>
   );
 }
@@ -223,18 +384,24 @@ function CommunitySection({ profile, onUpdated }) {
   const [soId, setSoId] = useState("");
   const [devtoUsername, setDevtoUsername] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [delta, setDelta] = useState(null);
   const { showToast } = useToast();
 
-  async function handleAddCert(e) {
-    e.preventDefault();
-    if (!certName.trim()) return;
+  /**
+   * Wraps the community mutations that feed c_peer_score, capturing the
+   * before/after readings around each one. Dev.to deliberately does not
+   * use this: it's stored as informational evidence and is not an input
+   * to compute_c_peer_score(), so it has no delta to show.
+   */
+  async function runScored(mutate, successMessage, onSuccess) {
     setSubmitting(true);
+    const before = scoreSnapshot(profile, "c_peer_score");
     try {
-      await candidatesApi.addCertification({ name: certName.trim(), issuer: certIssuer.trim() });
-      showToast("Certification added.", "success");
-      setCertName("");
-      setCertIssuer("");
-      onUpdated();
+      await mutate();
+      showToast(successMessage, "success");
+      onSuccess();
+      const fresh = await onUpdated();
+      if (fresh) setDelta({ before, after: scoreSnapshot(fresh, "c_peer_score") });
     } catch (error) {
       showToast(getErrorMessage(error), "error");
     } finally {
@@ -242,20 +409,27 @@ function CommunitySection({ profile, onUpdated }) {
     }
   }
 
+  async function handleAddCert(e) {
+    e.preventDefault();
+    if (!certName.trim()) return;
+    await runScored(
+      () => candidatesApi.addCertification({ name: certName.trim(), issuer: certIssuer.trim() }),
+      "Certification added.",
+      () => {
+        setCertName("");
+        setCertIssuer("");
+      },
+    );
+  }
+
   async function handleLinkSO(e) {
     e.preventDefault();
     if (!soId.trim()) return;
-    setSubmitting(true);
-    try {
-      await candidatesApi.linkStackOverflow(soId.trim());
-      showToast("Stack Overflow linked.", "success");
-      setSoId("");
-      onUpdated();
-    } catch (error) {
-      showToast(getErrorMessage(error), "error");
-    } finally {
-      setSubmitting(false);
-    }
+    await runScored(
+      () => candidatesApi.linkStackOverflow(soId.trim()),
+      "Stack Overflow linked.",
+      () => setSoId(""),
+    );
   }
 
   async function handleLinkDevTo(e) {
@@ -275,6 +449,8 @@ function CommunitySection({ profile, onUpdated }) {
   }
 
   const certs = profile?.certifications || [];
+  const hasScoredEvidence =
+    certs.length > 0 || !!profile?.stackoverflow_data || !!profile?.peer_endorsements?.length;
 
   return (
     <section className="card p-6">
@@ -340,8 +516,19 @@ function CommunitySection({ profile, onUpdated }) {
       </div>
       <p className="text-xs text-slate mt-2">
         Your Stack Overflow ID is the number in your profile URL (stackoverflow.com/users/
-        <span className="font-mono">NUMBER</span>/your-name), not your display name.
+        <span className="font-mono">NUMBER</span>/your-name), not your display name. Dev.to activity
+        is shown as community evidence but is not scored — only certifications, Stack Overflow
+        reputation, and peer endorsements feed Community Standing.
       </p>
+
+      {hasScoredEvidence && (
+        <ScoreContribution
+          label="Community Standing"
+          weight="20%"
+          current={profile?.c_peer_score}
+          delta={delta}
+        />
+      )}
     </section>
   );
 }

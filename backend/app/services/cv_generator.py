@@ -11,8 +11,6 @@ Built with pymupdf (already in your installed packages, same tool
 used for the admin bias report in Phase 7) rather than a templating/
 PDF-generation library, so no new dependency is needed.
 """
-import fitz
-
 from app.models import CandidateProfile, User
 from app.services.competency_engine import build_competency_profile
 
@@ -29,6 +27,13 @@ class _PdfWriter:
     heavily (variable-length skills/projects/certifications lists)."""
 
     def __init__(self):
+        # pymupdf (imported as `fitz`) loads a large native extension
+        # that costs several seconds. Importing it here rather than at
+        # module scope keeps that off the app's startup path — this
+        # module is reachable from the candidates router, so at module
+        # scope every `import main` paid it.
+        import fitz
+
         self.doc = fitz.open()
         self.page = self.doc.new_page()
         self.y = PAGE_MARGIN
