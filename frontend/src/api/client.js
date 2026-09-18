@@ -2,7 +2,7 @@ import axios from "axios";
 
 // The backend runs on 127.0.0.1:8000 by default (see backend/SETUP.md).
 // Change this if you run the API on a different host/port.
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://equityengine-tecf.onrender.com";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -52,7 +52,8 @@ export function getErrorMessage(error) {
 
 export function getWebSocketUrl() {
   const token = localStorage.getItem("equityengine_token");
-  return `ws://127.0.0.1:8000/ws/connect?token=${token}`;
+  const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws');
+  return `${WS_BASE_URL}/ws/connect?token=${token}`;
 }
 
 /**
