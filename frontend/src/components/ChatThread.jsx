@@ -141,7 +141,7 @@ export default function ChatThread({ otherUserId, jobId, otherUserLabel, onBack 
                   {m.content && <p>{m.content}</p>}
                   {m.file_url && (
                     <a
-                      href={`http://127.0.0.1:8000${m.file_url}`}
+                      href={`${import.meta.env.VITE_API_URL || 'https://equityengine-tecf.onrender.com'}${m.file_url}`}
                       target="_blank"
                       rel="noreferrer"
                       className={`text-xs underline underline-offset-2 ${isMine ? "text-paper" : "text-ink"}`}
