@@ -77,11 +77,6 @@ if not settings.SECRET_KEY:
         "from the directory you run uvicorn from."
     )
 
+# If local folder doesn't exist, fallback to Hugging Face Hub ID directly
 if not Path(settings.EMBEDDING_MODEL_PATH).exists():
-    raise RuntimeError(
-        f"EMBEDDING_MODEL_PATH resolved to '{settings.EMBEDDING_MODEL_PATH}' but no folder "
-        "exists there. Confirm backend/models/all-MiniLM-L6-v2/ actually contains the "
-        "downloaded model files (config.json, tokenizer files, model weights, etc.) — "
-        "an empty or missing folder is the most likely cause of a "
-        "'huggingface_hub...Repository Not Found' error at startup."
-    )
+    settings.EMBEDDING_MODEL_PATH = "sentence-transformers/all-MiniLM-L6-v2"
