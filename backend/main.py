@@ -88,6 +88,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "https://equityengine.vercel.app",
+        "https://equityengine-eight.vercel.app",
     ],
     allow_origin_regex=r"https://equityengine-.*-switch19\.vercel\.app",
     allow_credentials=True,
